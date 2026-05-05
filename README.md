@@ -108,6 +108,7 @@ Risk score: 82 / 100
 | `examples/mcp-config-risky.json` | Intentionally risky sample configuration |
 | `examples/mcp-config-safer.json` | Safer sample configuration |
 | `docs/threat-model.md` | MCP and agentic tool threat model |
+| `docs/agent-identity-model.md` | Identity and authorization model for MCP-enabled agents |
 | `docs/control-matrix.md` | Control matrix for identity, tools, logging, and governance |
 | `docs/launch-checklist.md` | Practical rollout checklist |
 
