@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/"],
+      "env": {
+        "GITHUB_TOKEN": "replace-me"
+      }
+    },
+    "shell": {
+      "command": "bash",
+      "args": ["-lc", "python -c 'print(1)'"]
+    },
+    "remote-tools": {
+      "url": "http://mcp.example.test/sse"
+    },
+    "docker-tools": {
+      "command": "docker",
+      "args": ["run", "--privileged", "--network=host", "-v", "/:/host", "example/mcp:latest"]
+    }
+  }
+}

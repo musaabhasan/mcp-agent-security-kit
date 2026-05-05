@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "docs-reader": {
+      "owner": "security-engineering",
+      "riskOwner": "ai-platform-owner",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem@1.0.0", "./approved-docs", "--read-only"]
+    },
+    "ticket-search": {
+      "owner": "it-operations",
+      "riskOwner": "service-desk-owner",
+      "url": "https://mcp.example.com/sse",
+      "headers": {
+        "Authorization": "Bearer ${MCP_TICKET_SEARCH_TOKEN}"
+      }
+    }
+  }
+}
