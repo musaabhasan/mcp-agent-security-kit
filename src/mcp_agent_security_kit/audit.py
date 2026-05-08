@@ -13,6 +13,7 @@ from typing import Any
 SEVERITY_ORDER = {"low": 1, "medium": 2, "high": 3, "critical": 4}
 SEVERITY_SCORE = {"low": 3, "medium": 10, "high": 20, "critical": 35}
 SARIF_LEVEL = {"low": "note", "medium": "warning", "high": "error", "critical": "error"}
+SARIF_SECURITY_SEVERITY = {"low": "3.0", "medium": "5.0", "high": "7.5", "critical": "9.0"}
 
 SECRET_NAME_PATTERN = re.compile(
     r"(token|secret|password|passwd|api[_-]?key|credential|private[_-]?key|client[_-]?secret)",
@@ -300,7 +301,7 @@ def render_sarif(findings: list[Finding], config_path: Path | None = None) -> st
                 "name": finding.rule_id,
                 "shortDescription": {"text": finding.message},
                 "fullDescription": {"text": finding.recommendation},
-                "properties": {"security-severity": str(SEVERITY_SCORE[finding.severity])},
+                "properties": {"security-severity": SARIF_SECURITY_SEVERITY[finding.severity]},
             }
 
         results.append(
