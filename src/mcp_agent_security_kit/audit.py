@@ -37,6 +37,18 @@ DOCKER_SOCKET_MARKERS = (
     "//./pipe/docker_engine",
     "npipe:////./pipe/docker_engine",
 )
+AUTO_APPROVAL_KEYS = {
+    "alwaysallow",
+    "alwaysallowed",
+    "autoallow",
+    "autoallowed",
+    "autoapprove",
+    "autoapproved",
+    "allowwithoutconfirmation",
+    "allowedtools",
+    "allowed_tools",
+}
+AUTO_APPROVAL_WILDCARDS = {"*", "all", "any", ".*"}
 TLS_VERIFY_FALSE_KEYS = {
     "rejectunauthorized",
     "reject_unauthorized",
@@ -304,6 +316,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 "Docker socket access is exposed to the MCP server.",
                 "Do not mount the Docker socket into agent-accessible tools. Use a narrow broker, sandboxed build service, or read-only deployment API instead.",
                 ", ".join(docker_socket_mounts),
+            )
+        )
+
+    auto_approval_wildcards = _auto_approval_wildcards(server)
+    if auto_approval_wildcards:
+        findings.append(
+            Finding(
+                "high",
+                "MCP-017",
+                name,
+                "MCP tool auto-approval is configured with a wildcard.",
+                "Replace wildcard auto-approval with explicit tool names and require confirmation for tools that write, delete, execute code, send data, or call external services.",
+                ", ".join(auto_approval_wildcards),
             )
         )
 
@@ -603,6 +628,27 @@ def _docker_socket_mounts(args: list[str]) -> list[str]:
             if any(marker in next_lowered for marker in DOCKER_SOCKET_MARKERS):
                 evidence.append(next_arg)
     return sorted(set(evidence))
+
+
+def _auto_approval_wildcards(server: dict[str, Any]) -> list[str]:
+    evidence: list[str] = []
+    for key, value in server.items():
+        normalized = _normalize_key(str(key))
+        if normalized not in AUTO_APPROVAL_KEYS:
+            continue
+        if _contains_wildcard_approval(value):
+            evidence.append(str(key))
+    return sorted(set(evidence))
+
+
+def _contains_wildcard_approval(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() in AUTO_APPROVAL_WILDCARDS
+    if isinstance(value, list):
+        return any(_contains_wildcard_approval(item) for item in value)
+    if isinstance(value, dict):
+        return any(_contains_wildcard_approval(item) for item in value.values())
+    return False
 
 
 def _normalize_key(value: str) -> str:
