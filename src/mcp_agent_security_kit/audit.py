@@ -31,6 +31,12 @@ TLS_SKIP_ARG_PATTERN = re.compile(
 SHELL_COMMANDS = {"bash", "sh", "zsh", "cmd", "cmd.exe", "powershell", "pwsh", "python", "python3", "node", "ruby", "perl"}
 PACKAGE_RUNNERS = {"npx", "pnpm", "npm", "bunx", "uvx", "pipx"}
 FILESYSTEM_WORDS = ("filesystem", "file", "fs", "directory", "path")
+DOCKER_SOCKET_MARKERS = (
+    "/var/run/docker.sock",
+    "docker.sock",
+    "//./pipe/docker_engine",
+    "npipe:////./pipe/docker_engine",
+)
 TLS_VERIFY_FALSE_KEYS = {
     "rejectunauthorized",
     "reject_unauthorized",
@@ -285,6 +291,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 "Docker-based MCP server uses privileged, host network, or host volume access.",
                 "Use a restricted container profile, narrow mounts, read-only filesystems, and no host networking.",
                 " ".join(args),
+            )
+        )
+
+    docker_socket_mounts = _docker_socket_mounts(args)
+    if docker_socket_mounts:
+        findings.append(
+            Finding(
+                "critical",
+                "MCP-016",
+                name,
+                "Docker socket access is exposed to the MCP server.",
+                "Do not mount the Docker socket into agent-accessible tools. Use a narrow broker, sandboxed build service, or read-only deployment API instead.",
+                ", ".join(docker_socket_mounts),
             )
         )
 
@@ -568,6 +587,21 @@ def _tls_validation_disabled(server: dict[str, Any], env: dict[str, Any], args: 
             evidence.append(str(key))
 
     evidence.extend(arg for arg in args if TLS_SKIP_ARG_PATTERN.match(arg.strip()))
+    return sorted(set(evidence))
+
+
+def _docker_socket_mounts(args: list[str]) -> list[str]:
+    evidence: list[str] = []
+    for index, arg in enumerate(args):
+        lowered = arg.strip().lower().replace("\\", "/")
+        if any(marker in lowered for marker in DOCKER_SOCKET_MARKERS):
+            evidence.append(arg)
+            continue
+        if arg in {"-v", "--volume", "--mount"} and index + 1 < len(args):
+            next_arg = args[index + 1]
+            next_lowered = next_arg.strip().lower().replace("\\", "/")
+            if any(marker in next_lowered for marker in DOCKER_SOCKET_MARKERS):
+                evidence.append(next_arg)
     return sorted(set(evidence))
 
 
