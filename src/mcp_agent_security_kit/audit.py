@@ -192,6 +192,21 @@ NETWORK_ALLOWLIST_KEYS = {
     "urlallowlist",
 }
 NETWORK_ALLOWLIST_WILDCARDS = {"*", "all", "any", "0.0.0.0/0", "::/0", "http://*", "https://*"}
+KUBERNETES_SERVICE_ACCOUNT_KEYS = {
+    "automountserviceaccounttoken",
+    "kubeapiserver",
+    "kubernetesapi",
+    "kubernetesapiserver",
+    "kubernetesapiurl",
+    "kubernetesservicehost",
+    "serviceaccounttokenpath",
+}
+KUBERNETES_SERVICE_ACCOUNT_MARKERS = (
+    "/var/run/secrets/kubernetes.io/serviceaccount",
+    "/run/secrets/kubernetes.io/serviceaccount",
+    "kubernetes.default.svc",
+    "kubernetes.default.svc.cluster.local",
+)
 
 
 @dataclass(frozen=True)
@@ -632,6 +647,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 "Cloud metadata endpoint or wildcard network scope is reachable by the MCP server.",
                 "Deny cloud metadata addresses such as 169.254.169.254 and use explicit egress allowlists for browser, fetch, request, and HTTP-capable MCP tools.",
                 ", ".join(cloud_metadata_exposures),
+            )
+        )
+
+    kubernetes_service_account_exposures = _kubernetes_service_account_exposures(server)
+    if kubernetes_service_account_exposures:
+        findings.append(
+            Finding(
+                "high",
+                "MCP-026",
+                name,
+                "Kubernetes service account access is exposed to the MCP server.",
+                "Do not expose projected Kubernetes service account tokens or in-cluster API endpoints to agent-accessible tools. Disable automatic token mounting where possible, use scoped service accounts, and broker Kubernetes actions through an audited gateway.",
+                ", ".join(kubernetes_service_account_exposures),
             )
         )
 
@@ -1571,6 +1599,48 @@ def _metadata_reference(value: str) -> bool:
         return False
     normalized = value.strip().strip('"').strip("'").replace("\\", "/")
     return any(pattern.search(normalized) for pattern in CLOUD_METADATA_PATTERNS)
+
+
+def _kubernetes_service_account_exposures(value: Any, path: str = "") -> list[str]:
+    evidence: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_path = f"{path}.{key}" if path else str(key)
+            normalized_key = _normalize_key(str(key))
+            if normalized_key == "automountserviceaccounttoken" and _is_explicit_true(item):
+                evidence.append(f"{key_path}=true")
+            elif normalized_key in KUBERNETES_SERVICE_ACCOUNT_KEYS:
+                for item_value in _kubernetes_reference_values(item):
+                    if _is_kubernetes_service_account_reference(item_value):
+                        evidence.append(f"{key_path}={item_value}")
+            evidence.extend(_kubernetes_service_account_exposures(item, key_path))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            evidence.extend(_kubernetes_service_account_exposures(item, f"{path}[{index}]"))
+    elif isinstance(value, (str, int, float)):
+        text = str(value).strip()
+        if text and _is_kubernetes_service_account_reference(text):
+            evidence.append(f"{path}={text}" if path else text)
+    return sorted(set(evidence))
+
+
+def _kubernetes_reference_values(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, (int, float)):
+        return [str(value)]
+    if isinstance(value, list):
+        return [str(item) for item in value if isinstance(item, (str, int, float))]
+    return []
+
+
+def _is_kubernetes_service_account_reference(value: str) -> bool:
+    if _is_placeholder_reference(value):
+        return False
+    normalized = value.strip().strip('"').strip("'").replace("\\", "/").lower()
+    if not normalized:
+        return False
+    return any(marker in normalized for marker in KUBERNETES_SERVICE_ACCOUNT_MARKERS)
 
 
 def _is_placeholder_reference(value: str) -> bool:

@@ -11,6 +11,7 @@ AI agents are moving from chat interfaces into systems that can read files, call
 - Review guard for external-action tools that should not be automatically approved without confirmation, policy evaluation, and audit logging.
 - Cloud metadata exposure detection for browser, fetch, request, and HTTP-capable MCP tools.
 - Browser debugging interface exposure detection for DevTools, CDP, and remote debugging endpoints.
+- Kubernetes service account exposure detection for in-cluster agent workloads.
 - Safe and risky MCP configuration examples for testing.
 - GitHub Actions validation for unit tests, Python compilation, SARIF report generation, JSON contract validation, and safe-example audit gates.
 - A published JSON output schema for downstream security dashboards, CI gates, and evidence repositories.
@@ -140,6 +141,7 @@ It also handles top-level server maps and remote server entries with `url`, `hea
 | MCP-023 | External-action tools are configured for automatic approval |
 | MCP-024 | Cloud metadata endpoint or wildcard network scope is reachable by the MCP server |
 | MCP-025 | Browser debugging interface is exposed to the MCP server |
+| MCP-026 | Kubernetes service account access is exposed to the MCP server |
 
 ## Change-Control Utilities
 
@@ -185,6 +187,7 @@ Risk score: 82 / 100
 | `docs/browser-debugging-exposure.md` | Review guidance for preventing DevTools, CDP, and remote debugging endpoints from becoming agent authority boundaries |
 | `docs/external-action-approval.md` | Review guidance for keeping external write, messaging, deployment, and merge tools behind confirmation and policy controls |
 | `docs/cloud-metadata-exposure.md` | Review guidance for preventing agent-accessible network tools from reaching cloud instance metadata endpoints |
+| `docs/kubernetes-service-account-exposure.md` | Review guidance for preventing Kubernetes service account tokens and in-cluster API access from becoming agent authority boundaries |
 | `docs/severity-overrides.md` | Local severity override policy workflow for adapting rule severities without suppressing evidence |
 | `schema/audit-output.schema.json` | Machine-readable schema for audit JSON reports |
 | `scripts/validate_json_output.py` | Dependency-free JSON report contract validator |
