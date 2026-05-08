@@ -378,12 +378,14 @@ def _string_list(value: Any) -> list[str]:
 
 
 def _has_auth_signal(headers: dict[str, Any], env: dict[str, Any], server: dict[str, Any]) -> bool:
-    header_names = {str(key).lower() for key in headers}
-    if "authorization" in header_names or "x-api-key" in header_names:
+    if any(_is_secret_header(str(key)) and _has_nonempty_value(value) for key, value in headers.items()):
         return True
-    if any(SECRET_NAME_PATTERN.search(str(key)) for key in env):
+    if any(SECRET_NAME_PATTERN.search(str(key)) and _has_nonempty_value(value) for key, value in env.items()):
         return True
-    return any(str(key).lower() in {"auth", "oauth", "token", "credential", "credentials"} for key in server)
+    return any(
+        str(key).lower() in {"auth", "oauth", "token", "credential", "credentials"} and _has_nonempty_value(value)
+        for key, value in server.items()
+    )
 
 
 def _is_secret_header(name: str) -> bool:
@@ -407,6 +409,14 @@ def _is_inline_secret_value(value: Any) -> bool:
         return False
     if re.fullmatch(r"<[^>]+>", text):
         return False
+    return True
+
+
+def _has_nonempty_value(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value.strip() != ""
     return True
 
 

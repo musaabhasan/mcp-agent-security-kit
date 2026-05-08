@@ -85,6 +85,22 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-011", rule_ids)
 
+    def test_empty_auth_header_does_not_satisfy_remote_auth(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "remote": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "url": "https://mcp.example.com/sse",
+                        "headers": {"Authorization": " "},
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertIn("MCP-002", rule_ids)
+
     def test_inline_secret_arguments_are_flagged(self):
         findings = audit_config(
             {
