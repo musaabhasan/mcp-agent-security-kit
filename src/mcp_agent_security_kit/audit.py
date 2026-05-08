@@ -8,6 +8,7 @@ import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, urlsplit
 
 
 SEVERITY_ORDER = {"low": 1, "medium": 2, "high": 3, "critical": 4}
@@ -112,6 +113,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 "Remote MCP server has no clear authentication signal.",
                 "Require user or service authentication and pass tokens through a controlled client path.",
                 url,
+            )
+        )
+
+    url_secret_params = _inline_secret_query_params(url)
+    if url_secret_params:
+        findings.append(
+            Finding(
+                "high",
+                "MCP-013",
+                name,
+                "Secret-like URL query parameter is configured inline.",
+                "Move tokens and credentials out of MCP server URLs and inject them through a protected runtime secret path.",
+                ", ".join(url_secret_params),
             )
         )
 
@@ -443,6 +457,18 @@ def _inline_secret_args(args: list[str]) -> list[str]:
             findings.append("bearer-token")
 
     return sorted(set(findings))
+
+
+def _inline_secret_query_params(url: str) -> list[str]:
+    if not url:
+        return []
+
+    params: list[str] = []
+    for key, value in parse_qsl(urlsplit(url).query, keep_blank_values=True):
+        if SECRET_NAME_PATTERN.search(key) and _is_inline_secret_value(value):
+            params.append(key)
+
+    return sorted(set(params))
 
 
 def _runner_package_unpinned(command: str, args: list[str]) -> bool:
