@@ -9,6 +9,7 @@ AI agents are moving from chat interfaces into systems that can read files, call
 - A dependency-free Python CLI that audits MCP server configuration files.
 - Detection rules for risky local commands, unpinned package runners, secret exposure, unencrypted remote servers, missing auth, broad filesystem access, and dangerous execution flags.
 - Safe and risky MCP configuration examples for testing.
+- GitHub Actions validation for unit tests, Python compilation, SARIF report generation, and safe-example audit gates.
 - A threat model for MCP and agentic tool access.
 - A control matrix aligned to agentic AI security, identity, logging, and governance concerns.
 - A practical launch checklist for teams piloting AI agents.
