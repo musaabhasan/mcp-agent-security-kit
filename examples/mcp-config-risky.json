@@ -60,6 +60,14 @@
         "GIT_ASKPASS": "/usr/local/bin/git-askpass",
         "GIT_CONFIG_GLOBAL": "/home/alice/.gitconfig"
       }
+    },
+    "container-builder": {
+      "command": "node",
+      "args": [
+        "build-server.js",
+        "unix:///run/buildkit/buildkitd.sock",
+        "/run/podman/podman.sock"
+      ]
     }
   }
 }

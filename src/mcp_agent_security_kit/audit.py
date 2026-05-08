@@ -37,6 +37,27 @@ DOCKER_SOCKET_MARKERS = (
     "//./pipe/docker_engine",
     "npipe:////./pipe/docker_engine",
 )
+CONTAINER_RUNTIME_SOCKET_KEYS = {
+    "buildkitsocket",
+    "containerdsocket",
+    "containerenginesocket",
+    "containerruntimesocket",
+    "cridockerdsocket",
+    "criosocket",
+    "podmansocket",
+}
+CONTAINER_RUNTIME_SOCKET_PATTERNS = (
+    re.compile(
+        r"(^|[/=:,;])(?:run|var/run)/(podman/podman|containerd/containerd|crio/crio|cri-dockerd|buildkit/buildkitd)\.sock([/=:,;]|$)",
+        re.IGNORECASE,
+    ),
+    re.compile(r"(^|[/=:,;])run/user/\d+/podman/podman\.sock([/=:,;]|$)", re.IGNORECASE),
+    re.compile(
+        r"(unix://)(?:run|var/run)/(podman/podman|containerd/containerd|crio/crio|cri-dockerd|buildkit/buildkitd)\.sock",
+        re.IGNORECASE,
+    ),
+    re.compile(r"(//\./pipe/|npipe:////\./pipe/)(podman|containerd|buildkit)[^,;\s]*", re.IGNORECASE),
+)
 DOCKER_OPTIONS_WITH_VALUES = {
     "-e",
     "--env",
@@ -742,6 +763,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
             )
         )
 
+    container_runtime_socket_exposures = _container_runtime_socket_exposures(server)
+    if container_runtime_socket_exposures:
+        findings.append(
+            Finding(
+                "critical",
+                "MCP-029",
+                name,
+                "Container runtime socket access is exposed to the MCP server.",
+                "Do not expose Podman, containerd, CRI-O, cri-dockerd, or BuildKit sockets to agent-accessible tools. Use a brokered build or deployment service with scoped actions, approval, and audit logging instead.",
+                ", ".join(container_runtime_socket_exposures),
+            )
+        )
+
     docker_unpinned_images = _docker_unpinned_images(command, args)
     if docker_unpinned_images:
         findings.append(
@@ -1191,6 +1225,36 @@ def _docker_socket_mounts(args: list[str]) -> list[str]:
             if any(marker in next_lowered for marker in DOCKER_SOCKET_MARKERS):
                 evidence.append(next_arg)
     return sorted(set(evidence))
+
+
+def _container_runtime_socket_exposures(value: Any, path: str = "") -> list[str]:
+    evidence: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_path = f"{path}.{key}" if path else str(key)
+            normalized_key = _normalize_key(str(key))
+            if normalized_key in CONTAINER_RUNTIME_SOCKET_KEYS and not _is_explicit_false(item):
+                evidence.append(f"{key_path}={item}")
+            evidence.extend(_container_runtime_socket_exposures(item, key_path))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            evidence.extend(_container_runtime_socket_exposures(item, f"{path}[{index}]"))
+    elif isinstance(value, (str, int, float)):
+        text = str(value).strip()
+        if text and _is_container_runtime_socket_reference(text):
+            evidence.append(f"{path}={text}" if path else text)
+    return sorted(set(evidence))
+
+
+def _is_container_runtime_socket_reference(value: str) -> bool:
+    if _is_placeholder_reference(value):
+        return False
+    normalized = value.strip().strip('"').strip("'").replace("\\", "/").lower()
+    if not normalized:
+        return False
+    if any(marker in normalized for marker in DOCKER_SOCKET_MARKERS):
+        return False
+    return any(pattern.search(normalized) for pattern in CONTAINER_RUNTIME_SOCKET_PATTERNS)
 
 
 def _docker_unpinned_images(command: str, args: list[str]) -> list[str]:
