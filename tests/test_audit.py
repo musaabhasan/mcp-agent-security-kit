@@ -837,6 +837,75 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-026", rule_ids)
 
+    def test_ssh_agent_socket_env_is_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "git-agent": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["git-server.js"],
+                        "env": {"SSH_AUTH_SOCK": "${SSH_AUTH_SOCK}"},
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        evidence = " ".join(finding.evidence for finding in findings if finding.rule_id == "MCP-027")
+
+        self.assertIn("MCP-027", rule_ids)
+        self.assertIn("SSH_AUTH_SOCK", evidence)
+
+    def test_ssh_agent_socket_mounts_are_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "containerized-git": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "docker",
+                        "args": [
+                            "run",
+                            "--mount",
+                            "type=bind,source=/tmp/ssh-AbCdE/agent.12345,target=/ssh-agent",
+                            "example/git-mcp@sha256:"
+                            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        ],
+                    },
+                    "windows-git": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["git-server.js", "//./pipe/openssh-ssh-agent"],
+                    },
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        evidence = " ".join(finding.evidence for finding in findings if finding.rule_id == "MCP-027")
+
+        self.assertIn("MCP-027", rule_ids)
+        self.assertIn("agent.12345", evidence)
+        self.assertIn("openssh-ssh-agent", evidence)
+
+    def test_ssh_agent_disabled_or_absent_is_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "git-agent": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["git-server.js", "--repository", "./docs"],
+                        "sshAgentSocket": False,
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-027", rule_ids)
+
     def test_extract_allowed_tools_handles_lists_and_maps(self):
         tools = extract_allowed_tools(
             {
