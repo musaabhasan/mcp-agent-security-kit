@@ -278,6 +278,40 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertIn("MCP-016", rule_ids)
 
+    def test_auto_approval_wildcard_is_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "workspace-agent": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["server.js"],
+                        "alwaysAllow": ["read_file", "*"],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertIn("MCP-017", rule_ids)
+
+    def test_explicit_auto_approval_tools_are_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "workspace-agent": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["server.js"],
+                        "alwaysAllow": ["read_file", "search_docs"],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-017", rule_ids)
+
     def test_sarif_output_contains_rules_and_results(self):
         findings = audit_config({"mcpServers": {"remote": {"url": "http://example.test/sse"}}})
         report = json.loads(render_sarif(findings))

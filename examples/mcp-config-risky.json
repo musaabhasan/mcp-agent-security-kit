@@ -13,7 +13,8 @@
     },
     "remote-tools": {
       "url": "http://mcp.example.test/sse",
-      "verify_ssl": false
+      "verify_ssl": false,
+      "alwaysAllow": ["*"]
     },
     "docker-tools": {
       "command": "docker",
