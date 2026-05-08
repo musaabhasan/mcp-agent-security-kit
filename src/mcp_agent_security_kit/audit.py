@@ -221,6 +221,20 @@ SSH_AGENT_SOCKET_PATTERNS = (
     re.compile(r"(openssh-ssh-agent|pageant|npiperelay)", re.IGNORECASE),
     re.compile(r"//\./pipe/openssh-ssh-agent", re.IGNORECASE),
 )
+GIT_CREDENTIAL_HELPER_KEYS = {
+    "credentialhelper",
+    "gitaskpass",
+    "gitconfigglobal",
+    "gitconfigsystem",
+    "gitcredentialhelper",
+}
+GIT_CREDENTIAL_HELPER_PATTERNS = (
+    re.compile(r"\bGIT_ASKPASS\b", re.IGNORECASE),
+    re.compile(r"\bGIT_CONFIG_(GLOBAL|SYSTEM)\b", re.IGNORECASE),
+    re.compile(r"credential\.helper\s*(=|\s)\s*(!|store|cache|manager|manager-core|osxkeychain|wincred|libsecret|gnome-keyring)", re.IGNORECASE),
+    re.compile(r"git-credential-(store|cache|manager|manager-core|osxkeychain|wincred|libsecret|gnome-keyring)", re.IGNORECASE),
+    re.compile(r"(^|[/=:,;~])(\.git-credentials|\.config/git/credentials|\.gitconfig)([/=:,;]|$)", re.IGNORECASE),
+)
 
 
 @dataclass(frozen=True)
@@ -687,6 +701,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 "SSH agent socket access is exposed to the MCP server.",
                 "Do not pass SSH agent sockets or OpenSSH/Pageant agent pipes into agent-accessible tools. Use deploy keys, short-lived scoped tokens, or a brokered Git operation with explicit approval and audit logs.",
                 ", ".join(ssh_agent_socket_exposures),
+            )
+        )
+
+    git_credential_helper_exposures = _git_credential_helper_exposures(server)
+    if git_credential_helper_exposures:
+        findings.append(
+            Finding(
+                "high",
+                "MCP-028",
+                name,
+                "Git credential helper access is exposed to the MCP server.",
+                "Do not expose Git credential helpers, askpass helpers, .gitconfig, or .git-credentials files to agent-accessible tools. Use scoped repository tokens, read-only deploy keys, or a brokered Git operation with explicit approval and audit logging.",
+                ", ".join(git_credential_helper_exposures),
             )
         )
 
@@ -1694,6 +1721,32 @@ def _is_ssh_agent_socket_reference(value: str) -> bool:
     if not normalized:
         return False
     return any(pattern.search(normalized) for pattern in SSH_AGENT_SOCKET_PATTERNS)
+
+
+def _git_credential_helper_exposures(value: Any, path: str = "") -> list[str]:
+    evidence: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_path = f"{path}.{key}" if path else str(key)
+            normalized_key = _normalize_key(str(key))
+            if normalized_key in GIT_CREDENTIAL_HELPER_KEYS and not _is_explicit_false(item):
+                evidence.append(f"{key_path}={item}")
+            evidence.extend(_git_credential_helper_exposures(item, key_path))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            evidence.extend(_git_credential_helper_exposures(item, f"{path}[{index}]"))
+    elif isinstance(value, (str, int, float)):
+        text = str(value).strip()
+        if text and _is_git_credential_helper_reference(text):
+            evidence.append(f"{path}={text}" if path else text)
+    return sorted(set(evidence))
+
+
+def _is_git_credential_helper_reference(value: str) -> bool:
+    normalized = value.strip().strip('"').strip("'").replace("\\", "/").lower()
+    if not normalized:
+        return False
+    return any(pattern.search(normalized) for pattern in GIT_CREDENTIAL_HELPER_PATTERNS)
 
 
 def _is_placeholder_reference(value: str) -> bool:

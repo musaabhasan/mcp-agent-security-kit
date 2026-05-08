@@ -906,6 +906,77 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-027", rule_ids)
 
+    def test_git_credential_helper_env_is_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "git-agent": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["git-server.js"],
+                        "env": {
+                            "GIT_ASKPASS": "/usr/local/bin/git-askpass",
+                            "GIT_CONFIG_GLOBAL": "/home/alice/.gitconfig",
+                        },
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        evidence = " ".join(finding.evidence for finding in findings if finding.rule_id == "MCP-028")
+
+        self.assertIn("MCP-028", rule_ids)
+        self.assertIn("GIT_ASKPASS", evidence)
+        self.assertIn("GIT_CONFIG_GLOBAL", evidence)
+
+    def test_git_credential_helper_mounts_and_config_are_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "containerized-git": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "docker",
+                        "args": [
+                            "run",
+                            "--mount",
+                            "type=bind,source=/home/alice/.git-credentials,target=/root/.git-credentials,readonly",
+                            "-v",
+                            "/home/alice/.gitconfig:/root/.gitconfig:ro",
+                            "example/git-mcp@sha256:"
+                            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        ],
+                        "config": {"credential.helper": "store"},
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        evidence = " ".join(finding.evidence for finding in findings if finding.rule_id == "MCP-028")
+
+        self.assertIn("MCP-028", rule_ids)
+        self.assertIn(".git-credentials", evidence)
+        self.assertIn(".gitconfig", evidence)
+        self.assertIn("credential.helper", evidence)
+
+    def test_git_without_credential_helper_is_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "git-reader": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["git-server.js", "--repository", "./approved-docs"],
+                        "gitCredentialHelper": False,
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-028", rule_ids)
+
     def test_extract_allowed_tools_handles_lists_and_maps(self):
         tools = extract_allowed_tools(
             {
