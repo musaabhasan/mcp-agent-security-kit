@@ -367,6 +367,55 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertIn("MCP-016", rule_ids)
 
+    def test_container_runtime_socket_mounts_are_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "podman-tools": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "podman",
+                        "args": [
+                            "run",
+                            "--volume",
+                            "/run/podman/podman.sock:/run/podman/podman.sock",
+                            "example/mcp@sha256:"
+                            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        ],
+                    },
+                    "buildkit-tools": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["builder.js", "unix:///var/run/buildkit/buildkitd.sock"],
+                    },
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        evidence = " ".join(finding.evidence for finding in findings if finding.rule_id == "MCP-029")
+
+        self.assertIn("MCP-029", rule_ids)
+        self.assertIn("podman.sock", evidence)
+        self.assertIn("buildkitd.sock", evidence)
+
+    def test_container_runtime_socket_placeholders_and_disabled_keys_are_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "brokered-builds": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["builder.js", "--socket", "${BUILDKIT_SOCKET}"],
+                        "containerRuntimeSocket": False,
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-029", rule_ids)
+
     def test_mutable_docker_image_reference_is_flagged(self):
         findings = audit_config(
             {

@@ -13,6 +13,7 @@
 | Kubernetes workload identity | Disable unnecessary service account token mounts and broker cluster actions through narrow RBAC | Pod spec, RBAC review, MCP-026 scan results |
 | SSH and Git authority | Avoid exposing SSH agent sockets to MCP servers and broker Git or deployment operations through scoped credentials | MCP-027 scan results, deploy key inventory, approval logs |
 | Source-control credentials | Keep Git credential helpers, askpass helpers, and user-level credential files out of MCP server environments | MCP-028 scan results, scoped token inventory, source-control approval logs |
+| Container runtime authority | Keep Podman, containerd, CRI-O, cri-dockerd, and BuildKit sockets out of direct MCP server reach | MCP-029 scan results, broker design, build/deploy approval logs |
 | Prompt injection | Label untrusted content and inspect tool outputs before reuse | Test records, blocked examples |
 | Human approval | Require approval for high-impact, external, privileged, or irreversible actions | Approval logs |
 | Monitoring | Log prompts, tool arguments, tool outputs, denials, approvals, and downstream actions | SIEM queries, trace samples |
