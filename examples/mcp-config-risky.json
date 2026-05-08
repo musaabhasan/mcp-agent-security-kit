@@ -37,6 +37,11 @@
         "C:\\Users\\alice\\AppData\\Local\\Google\\Chrome\\User Data",
         "--cookie-file=./cookies.json"
       ]
+    },
+    "helpdesk-actions": {
+      "command": "node",
+      "args": ["action-server.js"],
+      "alwaysAllow": ["search_docs", "create_ticket", "send_email", "merge_pull_request"]
     }
   }
 }

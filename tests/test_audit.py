@@ -373,6 +373,45 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-017", rule_ids)
 
+    def test_external_action_auto_approval_is_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "helpdesk-agent": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["server.js"],
+                        "alwaysAllow": ["search_docs", "create_ticket", "send_email", "merge_pull_request"],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        external_action_finding = next(finding for finding in findings if finding.rule_id == "MCP-023")
+
+        self.assertIn("MCP-023", rule_ids)
+        self.assertIn("create_ticket", external_action_finding.evidence)
+        self.assertIn("send_email", external_action_finding.evidence)
+        self.assertIn("merge_pull_request", external_action_finding.evidence)
+
+    def test_read_only_auto_approval_tools_do_not_trigger_external_action_rule(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "research-agent": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["server.js"],
+                        "alwaysAllow": ["read_file", "search_docs", "list_resources"],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-023", rule_ids)
+
     def test_broad_auth_scope_is_flagged(self):
         findings = audit_config(
             {

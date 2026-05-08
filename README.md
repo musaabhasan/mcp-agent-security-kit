@@ -8,6 +8,7 @@ AI agents are moving from chat interfaces into systems that can read files, call
 
 - A dependency-free Python CLI that audits MCP server configuration files.
 - Detection rules for risky local commands, unpinned package runners, secret exposure, unencrypted remote servers, missing auth, broad filesystem access, and dangerous execution flags.
+- Review guard for external-action tools that should not be automatically approved without confirmation, policy evaluation, and audit logging.
 - Safe and risky MCP configuration examples for testing.
 - GitHub Actions validation for unit tests, Python compilation, SARIF report generation, JSON contract validation, and safe-example audit gates.
 - A published JSON output schema for downstream security dashboards, CI gates, and evidence repositories.
@@ -127,6 +128,7 @@ It also handles top-level server maps and remote server entries with `url`, `hea
 | MCP-020 | Credential-bearing local path is exposed to the MCP server |
 | MCP-021 | Environment file is exposed to the MCP server |
 | MCP-022 | Browser session or profile data is exposed to the MCP server |
+| MCP-023 | External-action tools are configured for automatic approval |
 
 ## Change-Control Utilities
 
@@ -168,6 +170,7 @@ Risk score: 82 / 100
 | `docs/credential-path-exposure.md` | Review guidance for preventing MCP filesystem grants from exposing local credential stores |
 | `docs/env-file-exposure.md` | Review guidance for preventing `.env` and secret-bearing env files from being passed into MCP servers |
 | `docs/browser-profile-exposure.md` | Review guidance for preventing browser profile, cookie, and storage-state exposure to MCP browser tools |
+| `docs/external-action-approval.md` | Review guidance for keeping external write, messaging, deployment, and merge tools behind confirmation and policy controls |
 | `schema/audit-output.schema.json` | Machine-readable schema for audit JSON reports |
 | `scripts/validate_json_output.py` | Dependency-free JSON report contract validator |
 
