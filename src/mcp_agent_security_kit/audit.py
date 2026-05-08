@@ -130,6 +130,27 @@ SENSITIVE_CREDENTIAL_PATH_PATTERNS = (
 )
 ENV_FILE_OPTIONS = {"--env-file", "--envfile", "--dotenv", "--dotenv-file", "--env-file-path"}
 SAFE_ENV_FILE_SUFFIXES = (".example", ".sample", ".template", ".dist")
+BROWSER_PROFILE_OPTIONS = {
+    "--user-data-dir",
+    "--profile-path",
+    "--browser-profile",
+    "--browser-profile-dir",
+}
+BROWSER_SESSION_OPTIONS = {
+    "--auth-state",
+    "--cookie-db",
+    "--cookie-file",
+    "--cookies",
+    "--session-file",
+    "--storage-state",
+}
+BROWSER_PROFILE_PATH_PATTERNS = (
+    re.compile(r"(^|/|:|=|,|;|~)(\.config/(google-chrome|chromium|brave-browser|microsoft-edge))(/|:|$)", re.IGNORECASE),
+    re.compile(r"(^|/|:|=|,|;|~)(\.mozilla/firefox)(/|:|$)", re.IGNORECASE),
+    re.compile(r"(library/application support/(google/chrome|chromium|brave[- ]browser|microsoft edge))", re.IGNORECASE),
+    re.compile(r"(appdata/(local|roaming)/(google/chrome|chromium|bravesoftware|microsoft/edge|mozilla/firefox))", re.IGNORECASE),
+    re.compile(r"(^|/|:|=|,|;)(cookies|cookies\.sqlite|logins\.json|key4\.db|local state)$", re.IGNORECASE),
+)
 
 
 @dataclass(frozen=True)
@@ -473,6 +494,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 "Environment file is exposed to the MCP server.",
                 "Do not pass .env or secret-bearing env files directly to agent-accessible MCP servers. Inject scoped runtime credentials from a protected environment, secret manager, or brokered credential flow instead.",
                 ", ".join(env_files),
+            )
+        )
+
+    browser_session_exposures = _browser_session_exposures(args)
+    if browser_session_exposures:
+        findings.append(
+            Finding(
+                "high",
+                "MCP-022",
+                name,
+                "Browser session or profile data is exposed to the MCP server.",
+                "Do not grant agent-accessible browser tools direct access to existing browser profiles, cookies, or storage-state files. Use a fresh isolated profile, short-lived test account, and explicit domain allowlist instead.",
+                ", ".join(browser_session_exposures),
             )
         )
 
@@ -1190,6 +1224,81 @@ def _looks_like_secret_env_file(value: str) -> bool:
         or filename.startswith(".env.")
         or any(marker in filename for marker in ("secret", "credential", "token", "prod", "production"))
     )
+
+
+def _browser_session_exposures(args: list[str]) -> list[str]:
+    evidence: list[str] = []
+    for index, arg in enumerate(args):
+        normalized = arg.strip().strip('"').strip("'")
+        if not normalized:
+            continue
+
+        option, separator, value = normalized.partition("=")
+        lowered_option = option.lower()
+        if lowered_option in BROWSER_PROFILE_OPTIONS and separator:
+            if _looks_like_browser_profile_path(value):
+                evidence.append(arg)
+            continue
+
+        if lowered_option in BROWSER_SESSION_OPTIONS and separator:
+            if _is_inline_session_reference(value):
+                evidence.append(arg)
+            continue
+
+        lowered_normalized = normalized.lower()
+        if lowered_normalized in BROWSER_PROFILE_OPTIONS and index + 1 < len(args):
+            next_arg = args[index + 1].strip().strip('"').strip("'")
+            if _looks_like_browser_profile_path(next_arg):
+                evidence.append(f"{arg} {args[index + 1]}")
+            continue
+
+        if lowered_normalized in BROWSER_SESSION_OPTIONS and index + 1 < len(args):
+            next_arg = args[index + 1].strip().strip('"').strip("'")
+            if _is_inline_session_reference(next_arg):
+                evidence.append(f"{arg} {args[index + 1]}")
+            continue
+
+        if _looks_like_browser_profile_path(normalized):
+            evidence.append(arg)
+
+    return sorted(set(evidence))
+
+
+def _looks_like_browser_profile_path(value: str) -> bool:
+    if not value:
+        return False
+    normalized = value.strip().strip('"').strip("'").replace("\\", "/").rstrip("/")
+    if _is_placeholder_reference(normalized):
+        return False
+    return any(pattern.search(normalized) for pattern in BROWSER_PROFILE_PATH_PATTERNS)
+
+
+def _is_inline_session_reference(value: str) -> bool:
+    if not value:
+        return False
+    normalized = value.strip().strip('"').strip("'")
+    if _is_placeholder_reference(normalized):
+        return False
+    lowered = normalized.lower().replace("\\", "/")
+    filename = lowered.rsplit("/", 1)[-1]
+    return (
+        _looks_like_browser_profile_path(normalized)
+        or "cookie" in filename
+        or "storage-state" in filename
+        or "auth-state" in filename
+        or filename in {"state.json", "session.json", "sessions.json"}
+    )
+
+
+def _is_placeholder_reference(value: str) -> bool:
+    lowered = value.strip().lower()
+    if any(marker in lowered for marker in ("${", "{{", "env:", "secret:", "vault:", "keyvault:", "op://")):
+        return True
+    if re.fullmatch(r"\$[A-Za-z_][A-Za-z0-9_]*", value):
+        return True
+    if re.fullmatch(r"%[A-Za-z_][A-Za-z0-9_]*%", value):
+        return True
+    return re.fullmatch(r"<[^>]+>", value) is not None
 
 
 def _escape_cell(value: str) -> str:

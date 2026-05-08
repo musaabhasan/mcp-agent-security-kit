@@ -28,6 +28,15 @@
         "/var/run/docker.sock:/var/run/docker.sock",
         "example/mcp:latest"
       ]
+    },
+    "browser-tools": {
+      "command": "node",
+      "args": [
+        "browser-server.js",
+        "--user-data-dir",
+        "C:\\Users\\alice\\AppData\\Local\\Google\\Chrome\\User Data",
+        "--cookie-file=./cookies.json"
+      ]
     }
   }
 }

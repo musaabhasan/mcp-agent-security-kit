@@ -493,6 +493,58 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-021", rule_ids)
 
+    def test_browser_profile_paths_are_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "browser": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": [
+                            "browser-server.js",
+                            "--user-data-dir",
+                            "C:\\Users\\alice\\AppData\\Local\\Google\\Chrome\\User Data",
+                            "--cookie-file=./cookies.json",
+                        ],
+                    },
+                    "firefox": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "python",
+                        "args": [
+                            "server.py",
+                            "/home/alice/.mozilla/firefox/default-release/cookies.sqlite",
+                        ],
+                    },
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertIn("MCP-022", rule_ids)
+
+    def test_isolated_browser_profiles_are_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "browser": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": [
+                            "browser-server.js",
+                            "--user-data-dir",
+                            "./tmp/isolated-mcp-browser-profile",
+                            "--storage-state",
+                            "${MCP_BROWSER_STORAGE_STATE}",
+                        ],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-022", rule_ids)
+
     def test_extract_allowed_tools_handles_lists_and_maps(self):
         tools = extract_allowed_tools(
             {

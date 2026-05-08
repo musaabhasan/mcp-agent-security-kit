@@ -126,6 +126,7 @@ It also handles top-level server maps and remote server entries with `url`, `hea
 | MCP-019 | Authentication scopes or permissions look overbroad |
 | MCP-020 | Credential-bearing local path is exposed to the MCP server |
 | MCP-021 | Environment file is exposed to the MCP server |
+| MCP-022 | Browser session or profile data is exposed to the MCP server |
 
 ## Change-Control Utilities
 
@@ -166,6 +167,7 @@ Risk score: 82 / 100
 | `docs/broad-auth-scopes.md` | Least-privilege review guidance for OAuth scopes and provider permissions |
 | `docs/credential-path-exposure.md` | Review guidance for preventing MCP filesystem grants from exposing local credential stores |
 | `docs/env-file-exposure.md` | Review guidance for preventing `.env` and secret-bearing env files from being passed into MCP servers |
+| `docs/browser-profile-exposure.md` | Review guidance for preventing browser profile, cookie, and storage-state exposure to MCP browser tools |
 | `schema/audit-output.schema.json` | Machine-readable schema for audit JSON reports |
 | `scripts/validate_json_output.py` | Dependency-free JSON report contract validator |
 
