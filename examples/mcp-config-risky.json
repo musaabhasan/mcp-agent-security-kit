@@ -51,6 +51,13 @@
       "command": "node",
       "args": ["action-server.js"],
       "alwaysAllow": ["search_docs", "create_ticket", "send_email", "merge_pull_request"]
+    },
+    "git-agent": {
+      "command": "node",
+      "args": ["git-server.js"],
+      "env": {
+        "SSH_AUTH_SOCK": "${SSH_AUTH_SOCK}"
+      }
     }
   }
 }

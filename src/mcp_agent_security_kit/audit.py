@@ -207,6 +207,20 @@ KUBERNETES_SERVICE_ACCOUNT_MARKERS = (
     "kubernetes.default.svc",
     "kubernetes.default.svc.cluster.local",
 )
+SSH_AGENT_SOCKET_KEYS = {
+    "sshauthsock",
+    "sshagent",
+    "sshagentsock",
+    "sshagentsocket",
+}
+SSH_AGENT_SOCKET_PATTERNS = (
+    re.compile(r"\bssh_auth_sock\b", re.IGNORECASE),
+    re.compile(r"(^|[/=:,;])/?tmp/ssh-[^/]+/agent\.\d+([/=:,;]|$)", re.IGNORECASE),
+    re.compile(r"(^|[/=:,;])/?run/user/\d+/(keyring/)?ssh([/=:,;]|$)", re.IGNORECASE),
+    re.compile(r"(^|[/=:,;])agent\.\d+([/=:,;]|$)", re.IGNORECASE),
+    re.compile(r"(openssh-ssh-agent|pageant|npiperelay)", re.IGNORECASE),
+    re.compile(r"//\./pipe/openssh-ssh-agent", re.IGNORECASE),
+)
 
 
 @dataclass(frozen=True)
@@ -660,6 +674,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 "Kubernetes service account access is exposed to the MCP server.",
                 "Do not expose projected Kubernetes service account tokens or in-cluster API endpoints to agent-accessible tools. Disable automatic token mounting where possible, use scoped service accounts, and broker Kubernetes actions through an audited gateway.",
                 ", ".join(kubernetes_service_account_exposures),
+            )
+        )
+
+    ssh_agent_socket_exposures = _ssh_agent_socket_exposures(server)
+    if ssh_agent_socket_exposures:
+        findings.append(
+            Finding(
+                "high",
+                "MCP-027",
+                name,
+                "SSH agent socket access is exposed to the MCP server.",
+                "Do not pass SSH agent sockets or OpenSSH/Pageant agent pipes into agent-accessible tools. Use deploy keys, short-lived scoped tokens, or a brokered Git operation with explicit approval and audit logs.",
+                ", ".join(ssh_agent_socket_exposures),
             )
         )
 
@@ -1641,6 +1668,32 @@ def _is_kubernetes_service_account_reference(value: str) -> bool:
     if not normalized:
         return False
     return any(marker in normalized for marker in KUBERNETES_SERVICE_ACCOUNT_MARKERS)
+
+
+def _ssh_agent_socket_exposures(value: Any, path: str = "") -> list[str]:
+    evidence: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_path = f"{path}.{key}" if path else str(key)
+            normalized_key = _normalize_key(str(key))
+            if normalized_key in SSH_AGENT_SOCKET_KEYS and not _is_explicit_false(item):
+                evidence.append(f"{key_path}={item}")
+            evidence.extend(_ssh_agent_socket_exposures(item, key_path))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            evidence.extend(_ssh_agent_socket_exposures(item, f"{path}[{index}]"))
+    elif isinstance(value, (str, int, float)):
+        text = str(value).strip()
+        if text and _is_ssh_agent_socket_reference(text):
+            evidence.append(f"{path}={text}" if path else text)
+    return sorted(set(evidence))
+
+
+def _is_ssh_agent_socket_reference(value: str) -> bool:
+    normalized = value.strip().strip('"').strip("'").replace("\\", "/").lower()
+    if not normalized:
+        return False
+    return any(pattern.search(normalized) for pattern in SSH_AGENT_SOCKET_PATTERNS)
 
 
 def _is_placeholder_reference(value: str) -> bool:
