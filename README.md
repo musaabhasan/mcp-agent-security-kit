@@ -96,6 +96,7 @@ It also handles top-level server maps and remote server entries with `url`, `hea
 | MCP-012 | Secret-like command argument values are configured inline |
 | MCP-013 | Secret-like URL query parameter values are configured inline |
 | MCP-014 | Credential-like URL userinfo values are configured inline |
+| MCP-015 | TLS certificate validation is disabled |
 
 ## Example Output
 
