@@ -128,6 +128,8 @@ SENSITIVE_CREDENTIAL_PATH_PATTERNS = (
     re.compile(r"(^|/|:|=|,|;)(\.npmrc|\.pypirc|\.netrc|\.git-credentials)$", re.IGNORECASE),
     re.compile(r"(^|/|:|=|,|;)(id_rsa|id_ed25519|id_ecdsa|id_dsa)(\.pub)?$", re.IGNORECASE),
 )
+ENV_FILE_OPTIONS = {"--env-file", "--envfile", "--dotenv", "--dotenv-file", "--env-file-path"}
+SAFE_ENV_FILE_SUFFIXES = (".example", ".sample", ".template", ".dist")
 
 
 @dataclass(frozen=True)
@@ -458,6 +460,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 "Credential-bearing local path is exposed to the MCP server.",
                 "Do not grant agent-accessible tools direct access to SSH keys, cloud CLIs, Kubernetes config, Docker credentials, package registry tokens, or local credential stores. Use a brokered credential flow or a sanitized project directory instead.",
                 ", ".join(sensitive_paths),
+            )
+        )
+
+    env_files = _exposed_env_files(args)
+    if env_files:
+        findings.append(
+            Finding(
+                "high",
+                "MCP-021",
+                name,
+                "Environment file is exposed to the MCP server.",
+                "Do not pass .env or secret-bearing env files directly to agent-accessible MCP servers. Inject scoped runtime credentials from a protected environment, secret manager, or brokered credential flow instead.",
+                ", ".join(env_files),
             )
         )
 
@@ -1132,6 +1147,49 @@ def _sensitive_credential_paths(args: list[str]) -> list[str]:
         if any(pattern.search(normalized) for pattern in SENSITIVE_CREDENTIAL_PATH_PATTERNS):
             evidence.append(arg)
     return sorted(set(evidence))
+
+
+def _exposed_env_files(args: list[str]) -> list[str]:
+    evidence: list[str] = []
+    for index, arg in enumerate(args):
+        normalized = arg.strip().strip('"').strip("'")
+        if not normalized:
+            continue
+
+        option, separator, value = normalized.partition("=")
+        if option.lower() in ENV_FILE_OPTIONS and separator:
+            if _looks_like_secret_env_file(value):
+                evidence.append(arg)
+            continue
+
+        if normalized.lower() in ENV_FILE_OPTIONS and index + 1 < len(args):
+            next_arg = args[index + 1].strip().strip('"').strip("'")
+            if _looks_like_secret_env_file(next_arg):
+                evidence.append(f"{arg} {args[index + 1]}")
+            continue
+
+        if _looks_like_secret_env_file(normalized):
+            evidence.append(arg)
+
+    return sorted(set(evidence))
+
+
+def _looks_like_secret_env_file(value: str) -> bool:
+    if not value:
+        return False
+    normalized = value.replace("\\", "/").rstrip("/")
+    filename = normalized.rsplit("/", 1)[-1].lower()
+    if not filename.endswith(".env") and not filename.startswith(".env"):
+        return False
+    if filename.startswith(".env") and any(filename.endswith(suffix) for suffix in SAFE_ENV_FILE_SUFFIXES):
+        return False
+    if filename in {"example.env", "sample.env", "template.env", "test.env"}:
+        return False
+    return (
+        filename == ".env"
+        or filename.startswith(".env.")
+        or any(marker in filename for marker in ("secret", "credential", "token", "prod", "production"))
+    )
 
 
 def _escape_cell(value: str) -> str:
