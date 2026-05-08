@@ -68,6 +68,18 @@
         "unix:///run/buildkit/buildkitd.sock",
         "/run/podman/podman.sock"
       ]
+    },
+    "cloud-admin": {
+      "command": "node",
+      "args": [
+        "cloud-server.js",
+        "/home/alice/.aws/credentials"
+      ],
+      "env": {
+        "AWS_PROFILE": "production-admin",
+        "GOOGLE_APPLICATION_CREDENTIALS": "/home/alice/.config/gcloud/application_default_credentials.json",
+        "AZURE_CONFIG_DIR": "/home/alice/.azure"
+      }
     }
   }
 }

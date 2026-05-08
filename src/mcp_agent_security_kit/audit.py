@@ -256,6 +256,30 @@ GIT_CREDENTIAL_HELPER_PATTERNS = (
     re.compile(r"git-credential-(store|cache|manager|manager-core|osxkeychain|wincred|libsecret|gnome-keyring)", re.IGNORECASE),
     re.compile(r"(^|[/=:,;~])(\.git-credentials|\.config/git/credentials|\.gitconfig)([/=:,;]|$)", re.IGNORECASE),
 )
+CLOUD_CLI_CREDENTIAL_KEYS = {
+    "awsconfigfile",
+    "awscredentialprocess",
+    "awsdefaultprofile",
+    "awsprofile",
+    "awssharedcredentialsfile",
+    "azureconfigdir",
+    "cloudsdkconfig",
+    "cloudsdkconfigdir",
+    "gcloudconfig",
+    "gcloudconfigdir",
+    "googleapplicationcredentials",
+    "ocicliconfigfile",
+    "ocicliprofile",
+    "ociconfigfile",
+    "ociconfigprofile",
+}
+CLOUD_CLI_CREDENTIAL_PATTERNS = (
+    re.compile(r"(^|[/=:,;~])\.aws/(credentials|config)([/=:,;]|$)", re.IGNORECASE),
+    re.compile(r"(^|[/=:,;~])\.azure(/|:|=|,|;|$)", re.IGNORECASE),
+    re.compile(r"(^|[/=:,;~])\.config/gcloud(/|:|=|,|;|$)", re.IGNORECASE),
+    re.compile(r"(^|[/=:,;~])\.oci/config([/=:,;]|$)", re.IGNORECASE),
+    re.compile(r"(application_default_credentials|service[-_]?account|gcloud).*\.json([/=:,;]|$)", re.IGNORECASE),
+)
 
 
 @dataclass(frozen=True)
@@ -735,6 +759,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 "Git credential helper access is exposed to the MCP server.",
                 "Do not expose Git credential helpers, askpass helpers, .gitconfig, or .git-credentials files to agent-accessible tools. Use scoped repository tokens, read-only deploy keys, or a brokered Git operation with explicit approval and audit logging.",
                 ", ".join(git_credential_helper_exposures),
+            )
+        )
+
+    cloud_cli_credential_exposures = _cloud_cli_credential_exposures(server)
+    if cloud_cli_credential_exposures:
+        findings.append(
+            Finding(
+                "high",
+                "MCP-030",
+                name,
+                "Cloud CLI credential context is exposed to the MCP server.",
+                "Do not pass AWS, Google Cloud, Azure, or OCI CLI credential profiles and config paths into agent-accessible tools. Use scoped workload identity, short-lived tokens, or a brokered cloud operation with approval and audit logging.",
+                ", ".join(cloud_cli_credential_exposures),
             )
         )
 
@@ -1804,6 +1841,34 @@ def _git_credential_helper_exposures(value: Any, path: str = "") -> list[str]:
         if text and _is_git_credential_helper_reference(text):
             evidence.append(f"{path}={text}" if path else text)
     return sorted(set(evidence))
+
+
+def _cloud_cli_credential_exposures(value: Any, path: str = "") -> list[str]:
+    evidence: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_path = f"{path}.{key}" if path else str(key)
+            normalized_key = _normalize_key(str(key))
+            if normalized_key in CLOUD_CLI_CREDENTIAL_KEYS and not _is_explicit_false(item):
+                evidence.append(f"{key_path}={item}")
+            evidence.extend(_cloud_cli_credential_exposures(item, key_path))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            evidence.extend(_cloud_cli_credential_exposures(item, f"{path}[{index}]"))
+    elif isinstance(value, (str, int, float)):
+        text = str(value).strip()
+        if text and _is_cloud_cli_credential_reference(text):
+            evidence.append(f"{path}={text}" if path else text)
+    return sorted(set(evidence))
+
+
+def _is_cloud_cli_credential_reference(value: str) -> bool:
+    if _is_placeholder_reference(value):
+        return False
+    normalized = value.strip().strip('"').strip("'").replace("\\", "/").lower()
+    if not normalized:
+        return False
+    return any(pattern.search(normalized) for pattern in CLOUD_CLI_CREDENTIAL_PATTERNS)
 
 
 def _is_git_credential_helper_reference(value: str) -> bool:

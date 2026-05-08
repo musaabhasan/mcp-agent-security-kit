@@ -1026,6 +1026,76 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-028", rule_ids)
 
+    def test_cloud_cli_credential_context_env_is_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "cloud-admin": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["cloud-server.js"],
+                        "env": {
+                            "AWS_PROFILE": "production-admin",
+                            "GOOGLE_APPLICATION_CREDENTIALS": "/home/alice/.config/gcloud/application_default_credentials.json",
+                            "AZURE_CONFIG_DIR": "/home/alice/.azure",
+                        },
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        evidence = " ".join(finding.evidence for finding in findings if finding.rule_id == "MCP-030")
+
+        self.assertIn("MCP-030", rule_ids)
+        self.assertIn("AWS_PROFILE", evidence)
+        self.assertIn("GOOGLE_APPLICATION_CREDENTIALS", evidence)
+        self.assertIn("AZURE_CONFIG_DIR", evidence)
+
+    def test_cloud_cli_credential_paths_are_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "containerized-cloud": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "docker",
+                        "args": [
+                            "run",
+                            "--mount",
+                            "type=bind,source=/home/alice/.aws/credentials,target=/root/.aws/credentials,readonly",
+                            "example/cloud-mcp@sha256:"
+                            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        ],
+                        "ociConfigFile": "/home/alice/.oci/config",
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        evidence = " ".join(finding.evidence for finding in findings if finding.rule_id == "MCP-030")
+
+        self.assertIn("MCP-030", rule_ids)
+        self.assertIn(".aws/credentials", evidence)
+        self.assertIn(".oci/config", evidence)
+
+    def test_cloud_cli_disabled_or_absent_is_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "cloud-reader": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["cloud-server.js", "--project", "approved-sandbox"],
+                        "awsProfile": False,
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-030", rule_ids)
+
     def test_extract_allowed_tools_handles_lists_and_maps(self):
         tools = extract_allowed_tools(
             {
