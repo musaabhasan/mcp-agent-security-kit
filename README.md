@@ -123,6 +123,7 @@ It also handles top-level server maps and remote server entries with `url`, `hea
 | MCP-016 | Docker socket access is exposed to the MCP server |
 | MCP-017 | Tool auto-approval is configured with a wildcard |
 | MCP-018 | Docker-based MCP server image is not pinned to an immutable digest |
+| MCP-019 | Authentication scopes or permissions look overbroad |
 
 ## Change-Control Utilities
 
@@ -160,6 +161,7 @@ Risk score: 82 / 100
 | `docs/json-output-contract.md` | JSON output contract and integration guidance |
 | `docs/allowed-tool-drift.md` | Allowed-tool baseline comparison workflow for CI and change control |
 | `docs/owner-remediation-summary.md` | Owner-grouped remediation workflow for routing findings to accountable teams |
+| `docs/broad-auth-scopes.md` | Least-privilege review guidance for OAuth scopes and provider permissions |
 | `schema/audit-output.schema.json` | Machine-readable schema for audit JSON reports |
 | `scripts/validate_json_output.py` | Dependency-free JSON report contract validator |
 
