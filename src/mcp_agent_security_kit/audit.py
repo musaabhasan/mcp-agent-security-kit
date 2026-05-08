@@ -12,6 +12,7 @@ from typing import Any
 
 SEVERITY_ORDER = {"low": 1, "medium": 2, "high": 3, "critical": 4}
 SEVERITY_SCORE = {"low": 3, "medium": 10, "high": 20, "critical": 35}
+SARIF_LEVEL = {"low": "note", "medium": "warning", "high": "error", "critical": "error"}
 
 SECRET_NAME_PATTERN = re.compile(
     r"(token|secret|password|passwd|api[_-]?key|credential|private[_-]?key|client[_-]?secret)",
@@ -287,6 +288,64 @@ def render_json(findings: list[Finding]) -> str:
     )
 
 
+def render_sarif(findings: list[Finding], config_path: Path | None = None) -> str:
+    rules: dict[str, dict[str, Any]] = {}
+    results: list[dict[str, Any]] = []
+    artifact_uri = config_path.as_posix() if config_path else "mcp-config.json"
+
+    for finding in findings:
+        if finding.rule_id not in rules:
+            rules[finding.rule_id] = {
+                "id": finding.rule_id,
+                "name": finding.rule_id,
+                "shortDescription": {"text": finding.message},
+                "fullDescription": {"text": finding.recommendation},
+                "properties": {"security-severity": str(SEVERITY_SCORE[finding.severity])},
+            }
+
+        results.append(
+            {
+                "ruleId": finding.rule_id,
+                "level": SARIF_LEVEL[finding.severity],
+                "message": {"text": finding.message},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": artifact_uri},
+                            "region": {"startLine": 1},
+                        }
+                    }
+                ],
+                "properties": {
+                    "severity": finding.severity,
+                    "server": finding.server,
+                    "recommendation": finding.recommendation,
+                    "evidence": finding.evidence,
+                },
+            }
+        )
+
+    return json.dumps(
+        {
+            "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+            "version": "2.1.0",
+            "runs": [
+                {
+                    "tool": {
+                        "driver": {
+                            "name": "mcp-agent-security-kit",
+                            "informationUri": "https://github.com/musaabhasan/mcp-agent-security-kit",
+                            "rules": list(rules.values()),
+                        }
+                    },
+                    "results": results,
+                }
+            ],
+        },
+        indent=2,
+    )
+
+
 def write_output(text: str, output_path: Path | None) -> None:
     if output_path is None:
         print(text)
@@ -428,7 +487,7 @@ def _escape_cell(value: str) -> str:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Audit MCP server configuration for common agentic AI security risks.")
     parser.add_argument("config", type=Path, help="Path to an MCP JSON configuration file.")
-    parser.add_argument("--format", choices=("markdown", "json"), default="markdown", help="Output format.")
+    parser.add_argument("--format", choices=("markdown", "json", "sarif"), default="markdown", help="Output format.")
     parser.add_argument("--output", type=Path, help="Optional output report path.")
     parser.add_argument(
         "--fail-on",
@@ -443,7 +502,12 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     config = load_config(args.config)
     findings = audit_config(config)
-    report = render_json(findings) if args.format == "json" else render_markdown(findings)
+    if args.format == "json":
+        report = render_json(findings)
+    elif args.format == "sarif":
+        report = render_sarif(findings, args.config)
+    else:
+        report = render_markdown(findings)
     write_output(report, args.output)
     return 1 if should_fail(findings, args.fail_on) else 0
 
