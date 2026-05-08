@@ -1,6 +1,7 @@
+import json
 import unittest
 
-from mcp_agent_security_kit.audit import audit_config, risk_score, should_fail
+from mcp_agent_security_kit.audit import audit_config, render_sarif, risk_score, should_fail
 
 
 class AuditTests(unittest.TestCase):
@@ -115,6 +116,17 @@ class AuditTests(unittest.TestCase):
         )
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-012", rule_ids)
+
+    def test_sarif_output_contains_rules_and_results(self):
+        findings = audit_config({"mcpServers": {"remote": {"url": "http://example.test/sse"}}})
+        report = json.loads(render_sarif(findings))
+        self.assertEqual(report["version"], "2.1.0")
+        run = report["runs"][0]
+        rule_ids = {rule["id"] for rule in run["tool"]["driver"]["rules"]}
+        result_ids = {result["ruleId"] for result in run["results"]}
+        self.assertIn("MCP-001", rule_ids)
+        self.assertIn("MCP-001", result_ids)
+        self.assertTrue(all(result["level"] in {"note", "warning", "error"} for result in run["results"]))
 
 
 if __name__ == "__main__":

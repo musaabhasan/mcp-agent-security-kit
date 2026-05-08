@@ -43,6 +43,12 @@ Write a Markdown report:
 python -m mcp_agent_security_kit.audit examples/mcp-config-risky.json --output reports/mcp-audit.md
 ```
 
+Write SARIF for GitHub code scanning or security dashboards:
+
+```bash
+python -m mcp_agent_security_kit.audit examples/mcp-config-risky.json --format sarif --output reports/mcp-audit.sarif
+```
+
 Fail a pipeline when high-risk findings exist:
 
 ```bash
