@@ -407,6 +407,50 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-019", rule_ids)
 
+    def test_sensitive_credential_paths_are_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "filesystem": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "npx",
+                        "args": [
+                            "-y",
+                            "@modelcontextprotocol/server-filesystem@1.0.0",
+                            "C:\\Users\\alice\\.ssh",
+                            "~/.aws",
+                            "/home/alice/.kube/config",
+                        ],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertIn("MCP-020", rule_ids)
+
+    def test_project_paths_do_not_trigger_sensitive_credential_rule(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "workspace": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "npx",
+                        "args": [
+                            "-y",
+                            "@modelcontextprotocol/server-filesystem@1.0.0",
+                            "./docs",
+                            "./src",
+                            "--read-only",
+                        ],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-020", rule_ids)
+
     def test_extract_allowed_tools_handles_lists_and_maps(self):
         tools = extract_allowed_tools(
             {
