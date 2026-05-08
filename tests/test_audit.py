@@ -84,6 +84,38 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-011", rule_ids)
 
+    def test_inline_secret_arguments_are_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "remote-wrapper": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["server.js", "--api-key", "committed-secret-value"],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertIn("MCP-012", rule_ids)
+
+    def test_secret_argument_placeholders_are_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "remote-wrapper": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["server.js", "--api-key", "${MCP_API_KEY}"],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-012", rule_ids)
+
 
 if __name__ == "__main__":
     unittest.main()

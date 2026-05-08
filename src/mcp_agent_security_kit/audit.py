@@ -140,6 +140,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 )
             )
 
+    secret_args = _inline_secret_args(args)
+    if secret_args:
+        findings.append(
+            Finding(
+                "high",
+                "MCP-012",
+                name,
+                "Secret-like command argument value is configured inline.",
+                "Pass secrets through a protected environment reference, secret manager, or runtime credential broker instead of command arguments.",
+                ", ".join(secret_args),
+            )
+        )
+
     if command in PACKAGE_RUNNERS and _runner_package_unpinned(command, args):
         findings.append(
             Finding(
@@ -335,6 +348,31 @@ def _is_inline_secret_value(value: Any) -> bool:
     if re.fullmatch(r"<[^>]+>", text):
         return False
     return True
+
+
+def _inline_secret_args(args: list[str]) -> list[str]:
+    findings: list[str] = []
+    secret_option_pattern = re.compile(
+        r"^(--?(?:api[_-]?key|token|auth[_-]?token|access[_-]?token|secret|password|passwd|client[_-]?secret))(?:=(.*))?$",
+        re.IGNORECASE,
+    )
+    for index, arg in enumerate(args):
+        match = secret_option_pattern.match(arg.strip())
+        if match:
+            option_name = match.group(1)
+            inline_value = match.group(2)
+            if inline_value is not None:
+                if _is_inline_secret_value(inline_value):
+                    findings.append(option_name)
+                continue
+            if index + 1 < len(args) and _is_inline_secret_value(args[index + 1]):
+                findings.append(option_name)
+            continue
+
+        if re.search(r"\bbearer\s+\S+", arg, re.IGNORECASE) and _is_inline_secret_value(arg):
+            findings.append("bearer-token")
+
+    return sorted(set(findings))
 
 
 def _runner_package_unpinned(command: str, args: list[str]) -> bool:
