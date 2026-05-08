@@ -117,6 +117,17 @@ BROAD_AUTH_SCOPE_PATTERN = re.compile(
     r"(^\*$|(^|[:/._-])(admin|administrator|root|owner|full[-_ ]?access|read[-_ ]?write|delete)(?:$|[:/._-])|[:.]\*$)",
     re.IGNORECASE,
 )
+SENSITIVE_CREDENTIAL_PATH_PATTERNS = (
+    re.compile(r"(^|/|:|=|,|;|~)(\.ssh)(/|:|$)", re.IGNORECASE),
+    re.compile(r"(^|/|:|=|,|;|~)(\.aws)(/|:|$)", re.IGNORECASE),
+    re.compile(r"(^|/|:|=|,|;|~)(\.azure)(/|:|$)", re.IGNORECASE),
+    re.compile(r"(^|/|:|=|,|;|~)(\.kube)(/|:|$)", re.IGNORECASE),
+    re.compile(r"(^|/|:|=|,|;|~)(\.docker)(/|:|$)", re.IGNORECASE),
+    re.compile(r"(^|/|:|=|,|;|~)(\.gnupg)(/|:|$)", re.IGNORECASE),
+    re.compile(r"(^|/|:|=|,|;)(\.config/gcloud)(/|:|$)", re.IGNORECASE),
+    re.compile(r"(^|/|:|=|,|;)(\.npmrc|\.pypirc|\.netrc|\.git-credentials)$", re.IGNORECASE),
+    re.compile(r"(^|/|:|=|,|;)(id_rsa|id_ed25519|id_ecdsa|id_dsa)(\.pub)?$", re.IGNORECASE),
+)
 
 
 @dataclass(frozen=True)
@@ -434,6 +445,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 "Broad filesystem access is granted.",
                 "Scope filesystem access to a narrow project directory and prefer read-only access.",
                 ", ".join(broad_paths),
+            )
+        )
+
+    sensitive_paths = _sensitive_credential_paths(args)
+    if sensitive_paths:
+        findings.append(
+            Finding(
+                "high",
+                "MCP-020",
+                name,
+                "Credential-bearing local path is exposed to the MCP server.",
+                "Do not grant agent-accessible tools direct access to SSH keys, cloud CLIs, Kubernetes config, Docker credentials, package registry tokens, or local credential stores. Use a brokered credential flow or a sanitized project directory instead.",
+                ", ".join(sensitive_paths),
             )
         )
 
@@ -1097,6 +1121,17 @@ def _is_broad_path(value: str) -> bool:
     if re.fullmatch(r"[a-zA-Z]:\\?", normalized):
         return True
     return lowered in {"/users", "/home", "/var", "/etc", "c:\\users", "c:\\", "c:/", "/tmp"}
+
+
+def _sensitive_credential_paths(args: list[str]) -> list[str]:
+    evidence: list[str] = []
+    for arg in args:
+        normalized = arg.strip().strip('"').strip("'").replace("\\", "/")
+        if not normalized:
+            continue
+        if any(pattern.search(normalized) for pattern in SENSITIVE_CREDENTIAL_PATH_PATTERNS):
+            evidence.append(arg)
+    return sorted(set(evidence))
 
 
 def _escape_cell(value: str) -> str:
