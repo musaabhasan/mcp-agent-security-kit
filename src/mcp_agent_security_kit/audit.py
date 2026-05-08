@@ -159,6 +159,33 @@ BROWSER_PROFILE_PATH_PATTERNS = (
     re.compile(r"(appdata/(local|roaming)/(google/chrome|chromium|bravesoftware|microsoft/edge|mozilla/firefox))", re.IGNORECASE),
     re.compile(r"(^|/|:|=|,|;)(cookies|cookies\.sqlite|logins\.json|key4\.db|local state)$", re.IGNORECASE),
 )
+CLOUD_METADATA_PATTERNS = (
+    re.compile(r"169\.254\.169\.254", re.IGNORECASE),
+    re.compile(r"100\.100\.100\.200", re.IGNORECASE),
+    re.compile(r"fd00:ec2::254", re.IGNORECASE),
+    re.compile(r"metadata\.google\.internal", re.IGNORECASE),
+    re.compile(r"metadata\.azure\.internal", re.IGNORECASE),
+    re.compile(r"/latest/meta-data", re.IGNORECASE),
+    re.compile(r"/computeMetadata/v1", re.IGNORECASE),
+    re.compile(r"/metadata/instance", re.IGNORECASE),
+    re.compile(r"/opc/v[12]/instance", re.IGNORECASE),
+)
+NETWORK_ALLOWLIST_KEYS = {
+    "alloweddomains",
+    "allowedhosts",
+    "allowedurls",
+    "alloweddestinations",
+    "allowdomains",
+    "allowhosts",
+    "allowurls",
+    "allowdestinations",
+    "domainallowlist",
+    "egressallowlist",
+    "hostallowlist",
+    "networkallowlist",
+    "urlallowlist",
+}
+NETWORK_ALLOWLIST_WILDCARDS = {"*", "all", "any", "0.0.0.0/0", "::/0", "http://*", "https://*"}
 
 
 @dataclass(frozen=True)
@@ -515,6 +542,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 "Browser session or profile data is exposed to the MCP server.",
                 "Do not grant agent-accessible browser tools direct access to existing browser profiles, cookies, or storage-state files. Use a fresh isolated profile, short-lived test account, and explicit domain allowlist instead.",
                 ", ".join(browser_session_exposures),
+            )
+        )
+
+    cloud_metadata_exposures = _cloud_metadata_exposures(server)
+    if cloud_metadata_exposures:
+        findings.append(
+            Finding(
+                "high",
+                "MCP-024",
+                name,
+                "Cloud metadata endpoint or wildcard network scope is reachable by the MCP server.",
+                "Deny cloud metadata addresses such as 169.254.169.254 and use explicit egress allowlists for browser, fetch, request, and HTTP-capable MCP tools.",
+                ", ".join(cloud_metadata_exposures),
             )
         )
 
@@ -1317,6 +1357,60 @@ def _is_inline_session_reference(value: str) -> bool:
         or "auth-state" in filename
         or filename in {"state.json", "session.json", "sessions.json"}
     )
+
+
+def _cloud_metadata_exposures(value: Any, path: str = "") -> list[str]:
+    evidence: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_path = f"{path}.{key}" if path else str(key)
+            if _normalize_key(str(key)) in NETWORK_ALLOWLIST_KEYS:
+                evidence.extend(
+                    f"{key_path}={scope}"
+                    for scope in _network_scope_values(item)
+                    if _is_metadata_network_scope(scope)
+                )
+            evidence.extend(_cloud_metadata_exposures(item, key_path))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            evidence.extend(_cloud_metadata_exposures(item, f"{path}[{index}]"))
+    elif isinstance(value, (str, int, float)):
+        text = str(value).strip()
+        if text and _metadata_reference(text):
+            evidence.append(f"{path}={text}" if path else text)
+    return sorted(set(evidence))
+
+
+def _network_scope_values(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [scope.strip() for scope in re.split(r"[\s,]+", value) if scope.strip()]
+    if isinstance(value, list):
+        scopes: list[str] = []
+        for item in value:
+            scopes.extend(_network_scope_values(item))
+        return scopes
+    if isinstance(value, dict):
+        scopes = []
+        for key, item in value.items():
+            if isinstance(item, bool):
+                if item:
+                    scopes.append(str(key))
+                continue
+            scopes.extend(_network_scope_values(item))
+        return scopes
+    return []
+
+
+def _is_metadata_network_scope(value: str) -> bool:
+    normalized = value.strip().strip('"').strip("'").lower()
+    return normalized in NETWORK_ALLOWLIST_WILDCARDS or _metadata_reference(value)
+
+
+def _metadata_reference(value: str) -> bool:
+    if _is_placeholder_reference(value):
+        return False
+    normalized = value.strip().strip('"').strip("'").replace("\\", "/")
+    return any(pattern.search(normalized) for pattern in CLOUD_METADATA_PATTERNS)
 
 
 def _is_placeholder_reference(value: str) -> bool:

@@ -9,6 +9,7 @@ AI agents are moving from chat interfaces into systems that can read files, call
 - A dependency-free Python CLI that audits MCP server configuration files.
 - Detection rules for risky local commands, unpinned package runners, secret exposure, unencrypted remote servers, missing auth, broad filesystem access, and dangerous execution flags.
 - Review guard for external-action tools that should not be automatically approved without confirmation, policy evaluation, and audit logging.
+- Cloud metadata exposure detection for browser, fetch, request, and HTTP-capable MCP tools.
 - Safe and risky MCP configuration examples for testing.
 - GitHub Actions validation for unit tests, Python compilation, SARIF report generation, JSON contract validation, and safe-example audit gates.
 - A published JSON output schema for downstream security dashboards, CI gates, and evidence repositories.
@@ -129,6 +130,7 @@ It also handles top-level server maps and remote server entries with `url`, `hea
 | MCP-021 | Environment file is exposed to the MCP server |
 | MCP-022 | Browser session or profile data is exposed to the MCP server |
 | MCP-023 | External-action tools are configured for automatic approval |
+| MCP-024 | Cloud metadata endpoint or wildcard network scope is reachable by the MCP server |
 
 ## Change-Control Utilities
 
@@ -171,6 +173,7 @@ Risk score: 82 / 100
 | `docs/env-file-exposure.md` | Review guidance for preventing `.env` and secret-bearing env files from being passed into MCP servers |
 | `docs/browser-profile-exposure.md` | Review guidance for preventing browser profile, cookie, and storage-state exposure to MCP browser tools |
 | `docs/external-action-approval.md` | Review guidance for keeping external write, messaging, deployment, and merge tools behind confirmation and policy controls |
+| `docs/cloud-metadata-exposure.md` | Review guidance for preventing agent-accessible network tools from reaching cloud instance metadata endpoints |
 | `schema/audit-output.schema.json` | Machine-readable schema for audit JSON reports |
 | `scripts/validate_json_output.py` | Dependency-free JSON report contract validator |
 
