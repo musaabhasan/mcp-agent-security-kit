@@ -52,6 +52,38 @@ class AuditTests(unittest.TestCase):
         findings = audit_config({})
         self.assertEqual(findings[0].rule_id, "MCP-000")
 
+    def test_inline_secret_headers_are_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "remote": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "url": "https://mcp.example.com/sse",
+                        "headers": {"Authorization": "Bearer committed-token-value"},
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertIn("MCP-011", rule_ids)
+
+    def test_header_secret_placeholders_are_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "remote": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "url": "https://mcp.example.com/sse",
+                        "headers": {"Authorization": "Bearer ${MCP_REMOTE_TOKEN}"},
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-011", rule_ids)
+
 
 if __name__ == "__main__":
     unittest.main()
