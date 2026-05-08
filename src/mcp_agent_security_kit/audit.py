@@ -129,6 +129,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
             )
         )
 
+    url_userinfo_secrets = _inline_url_userinfo_secrets(url)
+    if url_userinfo_secrets:
+        findings.append(
+            Finding(
+                "high",
+                "MCP-014",
+                name,
+                "Credential-like URL userinfo is configured inline.",
+                "Move URL userinfo credentials into a protected runtime secret path and use header-based or client-managed authentication.",
+                ", ".join(url_userinfo_secrets),
+            )
+        )
+
     for key, value in env.items():
         if SECRET_NAME_PATTERN.search(str(key)) and value:
             findings.append(
@@ -464,11 +477,33 @@ def _inline_secret_query_params(url: str) -> list[str]:
         return []
 
     params: list[str] = []
-    for key, value in parse_qsl(urlsplit(url).query, keep_blank_values=True):
+    try:
+        query = urlsplit(url).query
+    except ValueError:
+        return []
+
+    for key, value in parse_qsl(query, keep_blank_values=True):
         if SECRET_NAME_PATTERN.search(key) and _is_inline_secret_value(value):
             params.append(key)
 
     return sorted(set(params))
+
+
+def _inline_url_userinfo_secrets(url: str) -> list[str]:
+    if not url:
+        return []
+
+    try:
+        parsed = urlsplit(url)
+    except ValueError:
+        return []
+
+    userinfo_parts: list[str] = []
+    if parsed.username and _is_inline_secret_value(parsed.username):
+        userinfo_parts.append("username")
+    if parsed.password and _is_inline_secret_value(parsed.password):
+        userinfo_parts.append("password")
+    return userinfo_parts
 
 
 def _runner_package_unpinned(command: str, args: list[str]) -> bool:
