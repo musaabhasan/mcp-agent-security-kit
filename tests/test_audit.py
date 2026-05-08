@@ -1,11 +1,14 @@
 import json
-from pathlib import Path
+import tempfile
 import unittest
+from pathlib import Path
 
 from mcp_agent_security_kit.audit import (
+    apply_severity_overrides,
     audit_config,
     compare_allowed_tool_drift,
     extract_allowed_tools,
+    load_severity_overrides,
     render_allowed_tool_drift_json,
     render_allowed_tool_drift_markdown,
     render_json,
@@ -63,6 +66,77 @@ class AuditTests(unittest.TestCase):
             }
         )
         self.assertFalse(should_fail(findings, "high"))
+
+    def test_severity_override_changes_gate_behavior(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "docs-reader": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "npx",
+                        "args": ["-y", "@modelcontextprotocol/server-filesystem", "./docs", "--read-only"],
+                    }
+                }
+            }
+        )
+        adjusted = apply_severity_overrides(findings, {"MCP-004": ("high", "package runners require review")})
+        mcp_004 = next(finding for finding in adjusted if finding.rule_id == "MCP-004")
+
+        self.assertEqual(mcp_004.severity, "high")
+        self.assertIn("Severity overridden by local policy", mcp_004.recommendation)
+        self.assertTrue(should_fail(adjusted, "high"))
+
+    def test_server_specific_severity_override_wins_over_rule_default(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "docs-reader": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "npx",
+                        "args": ["-y", "@modelcontextprotocol/server-filesystem", "./docs", "--read-only"],
+                    },
+                    "scratch-reader": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "npx",
+                        "args": ["-y", "@modelcontextprotocol/server-filesystem", "./tmp", "--read-only"],
+                    },
+                }
+            }
+        )
+        adjusted = apply_severity_overrides(
+            findings,
+            {
+                "MCP-004": ("low", "accepted for local developer tools"),
+                "docs-reader.MCP-004": ("high", "production documentation server"),
+            },
+        )
+        severities = {(finding.server, finding.rule_id): finding.severity for finding in adjusted}
+
+        self.assertEqual(severities[("docs-reader", "MCP-004")], "high")
+        self.assertEqual(severities[("scratch-reader", "MCP-004")], "low")
+
+    def test_load_severity_overrides_accepts_list_policy(self):
+        policy = {
+            "overrides": [
+                {
+                    "server": "docs-reader",
+                    "rule_id": "MCP-004",
+                    "severity": "high",
+                    "reason": "production server policy",
+                },
+                {"rule_id": "MCP-010", "severity": "low"},
+            ]
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "severity-overrides.json"
+            path.write_text(json.dumps(policy), encoding="utf-8")
+            overrides = load_severity_overrides(path)
+
+        self.assertEqual(overrides["docs-reader.MCP-004"], ("high", "production server policy"))
+        self.assertEqual(overrides["MCP-010"], ("low", ""))
 
     def test_empty_config_returns_configuration_finding(self):
         findings = audit_config({})

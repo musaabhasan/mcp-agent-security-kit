@@ -252,6 +252,64 @@ def audit_config(config: dict[str, Any]) -> list[Finding]:
     return sorted(findings, key=lambda item: (-SEVERITY_ORDER[item.severity], item.server, item.rule_id))
 
 
+def load_severity_overrides(path: Path) -> dict[str, tuple[str, str]]:
+    with path.open("r", encoding="utf-8") as handle:
+        loaded = json.load(handle)
+    if not isinstance(loaded, dict):
+        raise ValueError("Severity override policy must be a JSON object.")
+
+    raw_overrides = loaded.get("overrides", loaded)
+    overrides: dict[str, tuple[str, str]] = {}
+
+    if isinstance(raw_overrides, dict):
+        entries = _severity_override_entries_from_mapping(raw_overrides)
+    elif isinstance(raw_overrides, list):
+        entries = _severity_override_entries_from_list(raw_overrides)
+    else:
+        raise ValueError("Severity overrides must be an object or a list.")
+
+    for key, severity, reason in entries:
+        normalized_severity = str(severity).strip().lower()
+        if normalized_severity not in SEVERITY_ORDER:
+            raise ValueError(f"Invalid severity override for {key}: {severity}")
+        if key in overrides:
+            raise ValueError(f"Duplicate severity override key: {key}")
+        overrides[key] = (normalized_severity, reason)
+
+    return overrides
+
+
+def apply_severity_overrides(
+    findings: list[Finding], overrides: dict[str, tuple[str, str]]
+) -> list[Finding]:
+    if not overrides:
+        return findings
+
+    adjusted: list[Finding] = []
+    for finding in findings:
+        override = overrides.get(f"{finding.server}.{finding.rule_id}") or overrides.get(finding.rule_id)
+        if not override:
+            adjusted.append(finding)
+            continue
+
+        severity, reason = override
+        suffix = " Severity overridden by local policy."
+        if reason:
+            suffix = f" Severity overridden by local policy: {reason}"
+        adjusted.append(
+            Finding(
+                severity=severity,
+                rule_id=finding.rule_id,
+                server=finding.server,
+                message=finding.message,
+                recommendation=finding.recommendation + suffix,
+                evidence=finding.evidence,
+            )
+        )
+
+    return sorted(adjusted, key=lambda item: (-SEVERITY_ORDER[item.severity], item.server, item.rule_id))
+
+
 def extract_allowed_tools(config: dict[str, Any]) -> dict[str, set[str]]:
     servers = extract_servers(config)
     return {
@@ -828,6 +886,33 @@ def should_fail(findings: list[Finding], threshold: str) -> bool:
         return False
     required = SEVERITY_ORDER[threshold]
     return any(SEVERITY_ORDER[item.severity] >= required for item in findings)
+
+
+def _severity_override_entries_from_mapping(value: dict[str, Any]) -> list[tuple[str, str, str]]:
+    entries: list[tuple[str, str, str]] = []
+    for key, item in value.items():
+        if isinstance(item, str):
+            entries.append((str(key), item, ""))
+            continue
+        if isinstance(item, dict):
+            entries.append((str(key), str(item.get("severity", "")), str(item.get("reason", "") or "")))
+            continue
+        raise ValueError(f"Severity override for {key} must be a string or object.")
+    return entries
+
+
+def _severity_override_entries_from_list(value: list[Any]) -> list[tuple[str, str, str]]:
+    entries: list[tuple[str, str, str]] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            raise ValueError(f"Severity override entry {index} must be an object.")
+        rule_id = str(item.get("rule_id", "")).strip()
+        if not rule_id:
+            raise ValueError(f"Severity override entry {index} is missing rule_id.")
+        server = str(item.get("server", "")).strip()
+        key = f"{server}.{rule_id}" if server else rule_id
+        entries.append((key, str(item.get("severity", "")), str(item.get("reason", "") or "")))
+    return entries
 
 
 def _command_name(value: Any) -> str:
@@ -1444,6 +1529,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="none",
         help="Exit with status 1 when findings at or above this severity exist.",
     )
+    parser.add_argument(
+        "--severity-overrides",
+        type=Path,
+        help="Optional JSON policy that raises or lowers rule severities for local risk appetite.",
+    )
     return parser
 
 
@@ -1451,6 +1541,8 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     config = load_config(args.config)
     findings = audit_config(config)
+    if args.severity_overrides:
+        findings = apply_severity_overrides(findings, load_severity_overrides(args.severity_overrides))
     if args.format == "json":
         report = render_json(findings)
     elif args.format == "sarif":

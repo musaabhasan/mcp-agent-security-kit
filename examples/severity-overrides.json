@@ -1,0 +1,15 @@
+{
+  "overrides": [
+    {
+      "rule_id": "MCP-004",
+      "severity": "high",
+      "reason": "Package-runner drift is treated as high risk in production agent environments."
+    },
+    {
+      "server": "local-research",
+      "rule_id": "MCP-010",
+      "severity": "low",
+      "reason": "Read-write workspace access is approved for an isolated non-production research sandbox."
+    }
+  ]
+}

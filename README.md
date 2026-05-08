@@ -19,6 +19,7 @@ AI agents are moving from chat interfaces into systems that can read files, call
 - A control matrix aligned to agentic AI security, identity, logging, and governance concerns.
 - A practical launch checklist for teams piloting AI agents.
 - Runtime monitoring guidance for tool telemetry, drift detection, evidence handling, and incident triggers.
+- Severity override policies for adapting default rule severities to local risk appetite without suppressing evidence.
 
 ## Why This Topic Matters Now
 
@@ -80,6 +81,12 @@ Fail a pipeline when high-risk findings exist:
 python -m mcp_agent_security_kit.audit examples/mcp-config-risky.json --fail-on high
 ```
 
+Apply reviewed local severity policy before rendering reports or enforcing gates:
+
+```bash
+python -m mcp_agent_security_kit.audit examples/mcp-config-risky.json --severity-overrides examples/severity-overrides.json --fail-on high
+```
+
 After installation:
 
 ```bash
@@ -137,6 +144,7 @@ It also handles top-level server maps and remote server entries with `url`, `hea
 | Utility | Purpose |
 | --- | --- |
 | `scripts/compare_allowed_tools.py` | Compares allowed tool lists between a baseline and current config, then flags added high-impact tools and wildcard approvals |
+| `examples/severity-overrides.json` | Demonstrates reviewed local severity policy for production and sandbox exceptions |
 
 ## Example Output
 
@@ -174,6 +182,7 @@ Risk score: 82 / 100
 | `docs/browser-profile-exposure.md` | Review guidance for preventing browser profile, cookie, and storage-state exposure to MCP browser tools |
 | `docs/external-action-approval.md` | Review guidance for keeping external write, messaging, deployment, and merge tools behind confirmation and policy controls |
 | `docs/cloud-metadata-exposure.md` | Review guidance for preventing agent-accessible network tools from reaching cloud instance metadata endpoints |
+| `docs/severity-overrides.md` | Local severity override policy workflow for adapting rule severities without suppressing evidence |
 | `schema/audit-output.schema.json` | Machine-readable schema for audit JSON reports |
 | `scripts/validate_json_output.py` | Dependency-free JSON report contract validator |
 
