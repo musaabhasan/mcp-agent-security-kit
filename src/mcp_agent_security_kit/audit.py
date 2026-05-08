@@ -126,6 +126,20 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 )
             )
 
+    for key, value in headers.items():
+        header_name = str(key)
+        if _is_secret_header(header_name) and _is_inline_secret_value(value):
+            findings.append(
+                Finding(
+                    "high",
+                    "MCP-011",
+                    name,
+                    "Secret-like HTTP header value is configured inline.",
+                    "Inject authorization headers at runtime from a secret manager or protected environment variable.",
+                    header_name,
+                )
+            )
+
     if command in PACKAGE_RUNNERS and _runner_package_unpinned(command, args):
         findings.append(
             Finding(
@@ -297,6 +311,30 @@ def _has_auth_signal(headers: dict[str, Any], env: dict[str, Any], server: dict[
     if any(SECRET_NAME_PATTERN.search(str(key)) for key in env):
         return True
     return any(str(key).lower() in {"auth", "oauth", "token", "credential", "credentials"} for key in server)
+
+
+def _is_secret_header(name: str) -> bool:
+    normalized = name.lower()
+    return normalized in {"authorization", "x-api-key", "api-key", "x-auth-token"} or SECRET_NAME_PATTERN.search(name) is not None
+
+
+def _is_inline_secret_value(value: Any) -> bool:
+    if value is None:
+        return False
+    text = str(value).strip()
+    if not text:
+        return False
+    lowered = text.lower()
+    placeholder_markers = ("${", "{{", "env:", "secret:", "vault:", "keyvault:", "op://")
+    if any(marker in lowered for marker in placeholder_markers):
+        return False
+    if re.fullmatch(r"\$[A-Za-z_][A-Za-z0-9_]*", text):
+        return False
+    if re.fullmatch(r"%[A-Za-z_][A-Za-z0-9_]*%", text):
+        return False
+    if re.fullmatch(r"<[^>]+>", text):
+        return False
+    return True
 
 
 def _runner_package_unpinned(command: str, args: list[str]) -> bool:

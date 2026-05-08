@@ -86,6 +86,7 @@ It also handles top-level server maps and remote server entries with `url`, `hea
 | MCP-008 | Docker configuration uses privileged or host-level access |
 | MCP-009 | Server has no visible owner or risk owner metadata |
 | MCP-010 | Filesystem-like tool lacks a read-only signal |
+| MCP-011 | Secret-like HTTP header values are configured inline |
 
 ## Example Output
 
