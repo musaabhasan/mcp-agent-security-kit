@@ -775,6 +775,68 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-024", rule_ids)
 
+    def test_kubernetes_service_account_paths_are_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "cluster-admin": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": [
+                            "k8s-server.js",
+                            "/var/run/secrets/kubernetes.io/serviceaccount/token",
+                        ],
+                        "kubernetesApiUrl": "https://kubernetes.default.svc",
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        evidence = " ".join(finding.evidence for finding in findings if finding.rule_id == "MCP-026")
+
+        self.assertIn("MCP-026", rule_ids)
+        self.assertIn("serviceaccount/token", evidence)
+        self.assertIn("kubernetesApiUrl", evidence)
+
+    def test_kubernetes_automount_service_account_token_is_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "pod-tool": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "python",
+                        "args": ["server.py"],
+                        "podSecurityContext": {"automountServiceAccountToken": True},
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        evidence = " ".join(finding.evidence for finding in findings if finding.rule_id == "MCP-026")
+
+        self.assertIn("MCP-026", rule_ids)
+        self.assertIn("automountServiceAccountToken", evidence)
+
+    def test_kubernetes_placeholder_and_disabled_automount_are_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "pod-tool": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "python",
+                        "args": ["server.py"],
+                        "serviceAccountTokenPath": "${KUBERNETES_TOKEN_PATH}",
+                        "podSecurityContext": {"automountServiceAccountToken": False},
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-026", rule_ids)
+
     def test_extract_allowed_tools_handles_lists_and_maps(self):
         tools = extract_allowed_tools(
             {
