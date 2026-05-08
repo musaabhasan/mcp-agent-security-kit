@@ -163,6 +163,38 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-013", rule_ids)
 
+    def test_inline_url_userinfo_credentials_are_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "remote": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "url": "https://mcp-user:committed-password@mcp.example.com/sse",
+                        "headers": {"Authorization": "Bearer ${MCP_REMOTE_TOKEN}"},
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertIn("MCP-014", rule_ids)
+
+    def test_url_without_userinfo_credentials_is_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "remote": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "url": "https://mcp.example.com/sse",
+                        "headers": {"Authorization": "Bearer ${MCP_REMOTE_TOKEN}"},
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-014", rule_ids)
+
     def test_sarif_output_contains_rules_and_results(self):
         findings = audit_config({"mcpServers": {"remote": {"url": "http://example.test/sse"}}})
         report = json.loads(render_sarif(findings))
