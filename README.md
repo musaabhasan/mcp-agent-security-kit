@@ -122,6 +122,7 @@ It also handles top-level server maps and remote server entries with `url`, `hea
 | MCP-015 | TLS certificate validation is disabled |
 | MCP-016 | Docker socket access is exposed to the MCP server |
 | MCP-017 | Tool auto-approval is configured with a wildcard |
+| MCP-018 | Docker-based MCP server image is not pinned to an immutable digest |
 
 ## Change-Control Utilities
 

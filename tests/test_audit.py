@@ -293,6 +293,52 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertIn("MCP-016", rule_ids)
 
+    def test_mutable_docker_image_reference_is_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "containerized-tool": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "docker",
+                        "args": [
+                            "run",
+                            "--rm",
+                            "--name",
+                            "mcp-tool",
+                            "--mount",
+                            "type=bind,source=/safe/docs,target=/docs,readonly",
+                            "example/mcp-server:latest",
+                        ],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertIn("MCP-018", rule_ids)
+
+    def test_digest_pinned_docker_image_reference_is_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "containerized-tool": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "docker",
+                        "args": [
+                            "container",
+                            "run",
+                            "--rm",
+                            "example/mcp-server@sha256:"
+                            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        ],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-018", rule_ids)
+
     def test_auto_approval_wildcard_is_flagged(self):
         findings = audit_config(
             {

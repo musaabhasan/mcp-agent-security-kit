@@ -37,6 +37,32 @@ DOCKER_SOCKET_MARKERS = (
     "//./pipe/docker_engine",
     "npipe:////./pipe/docker_engine",
 )
+DOCKER_OPTIONS_WITH_VALUES = {
+    "-e",
+    "--env",
+    "--env-file",
+    "-h",
+    "--hostname",
+    "--add-host",
+    "--dns",
+    "--entrypoint",
+    "-l",
+    "--label",
+    "-m",
+    "--memory",
+    "--mount",
+    "--name",
+    "--network",
+    "-p",
+    "--publish",
+    "--platform",
+    "-u",
+    "--user",
+    "-v",
+    "--volume",
+    "-w",
+    "--workdir",
+}
 AUTO_APPROVAL_KEYS = {
     "alwaysallow",
     "alwaysallowed",
@@ -405,6 +431,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 "Docker socket access is exposed to the MCP server.",
                 "Do not mount the Docker socket into agent-accessible tools. Use a narrow broker, sandboxed build service, or read-only deployment API instead.",
                 ", ".join(docker_socket_mounts),
+            )
+        )
+
+    docker_unpinned_images = _docker_unpinned_images(command, args)
+    if docker_unpinned_images:
+        findings.append(
+            Finding(
+                "medium",
+                "MCP-018",
+                name,
+                "Docker-based MCP server image is not pinned to an immutable digest.",
+                "Pin containerized MCP server images with an approved sha256 digest and review image changes through change control.",
+                ", ".join(docker_unpinned_images),
             )
         )
 
@@ -804,6 +843,52 @@ def _docker_socket_mounts(args: list[str]) -> list[str]:
             if any(marker in next_lowered for marker in DOCKER_SOCKET_MARKERS):
                 evidence.append(next_arg)
     return sorted(set(evidence))
+
+
+def _docker_unpinned_images(command: str, args: list[str]) -> list[str]:
+    if command != "docker":
+        return []
+    image = _docker_primary_image(args)
+    if not image:
+        return []
+    if re.search(r"@sha256:[a-fA-F0-9]{64}\b", image):
+        return []
+    return [image]
+
+
+def _docker_primary_image(args: list[str]) -> str:
+    start = _docker_run_or_create_start(args)
+    if start is None:
+        return ""
+
+    index = start
+    while index < len(args):
+        arg = args[index]
+        if not arg:
+            index += 1
+            continue
+        if arg == "--":
+            return args[index + 1] if index + 1 < len(args) else ""
+        if arg.startswith("--") and "=" in arg:
+            index += 1
+            continue
+        if arg in DOCKER_OPTIONS_WITH_VALUES:
+            index += 2
+            continue
+        if arg.startswith("-"):
+            index += 1
+            continue
+        return arg
+    return ""
+
+
+def _docker_run_or_create_start(args: list[str]) -> int | None:
+    for index, arg in enumerate(args):
+        if arg in {"run", "create"}:
+            return index + 1
+        if arg == "container" and index + 1 < len(args) and args[index + 1] in {"run", "create"}:
+            return index + 2
+    return None
 
 
 def _auto_approval_wildcards(server: dict[str, Any]) -> list[str]:

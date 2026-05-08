@@ -32,6 +32,7 @@ Then test the scenarios below against the configured tool boundary.
 | TS-010 | Cross-tool toxic flow creates a combined impact | One tool reads credentials and another sends data externally, creating a complete exfiltration path. | Analyze tool combinations, limit tool sets by task, block risky pairings without human approval. | Tool graph, sequence trace, egress logs, combined-risk review. |
 | TS-011 | Memory write stores untrusted instructions | A tool writes retrieved hostile content into long-term memory where later tasks treat it as trusted. | Label memory provenance, separate facts from instructions, require review for persistent memory writes. | Memory write log, source trust label, later retrieval trace. |
 | TS-012 | Approval prompt is not bound to final action | User approves a benign summary, but the agent changes tool arguments before execution. | Bind approval to tool name, arguments, target resource, data class, and expiration. | Approval record hash, final tool-call arguments, mismatch alert. |
+| TS-013 | Mutable container image changes MCP behavior | A containerized MCP server is launched from an unpinned image tag, allowing the runtime tool surface to change without a reviewed configuration diff. | Pin images to approved sha256 digests, review image updates, and record provenance for containerized MCP servers. | MCP-018 finding, image digest, registry audit log, change approval. |
 
 ## Scenario Test Template
 
