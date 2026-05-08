@@ -12,6 +12,7 @@ AI agents are moving from chat interfaces into systems that can read files, call
 - GitHub Actions validation for unit tests, Python compilation, SARIF report generation, JSON contract validation, and safe-example audit gates.
 - A published JSON output schema for downstream security dashboards, CI gates, and evidence repositories.
 - A threat model for MCP and agentic tool access.
+- A threat scenario library for prompt-to-tool abuse, tool poisoning, approval bypass, and toxic tool flows.
 - A control matrix aligned to agentic AI security, identity, logging, and governance concerns.
 - A practical launch checklist for teams piloting AI agents.
 - Runtime monitoring guidance for tool telemetry, drift detection, evidence handling, and incident triggers.
@@ -131,6 +132,7 @@ Risk score: 82 / 100
 | `examples/mcp-config-risky.json` | Intentionally risky sample configuration |
 | `examples/mcp-config-safer.json` | Safer sample configuration |
 | `docs/threat-model.md` | MCP and agentic tool threat model |
+| `docs/threat-scenarios.md` | Concrete MCP abuse scenarios, controls, evidence, and monitoring signals |
 | `docs/agent-identity-model.md` | Identity and authorization model for MCP-enabled agents |
 | `docs/control-matrix.md` | Control matrix for identity, tools, logging, and governance |
 | `docs/launch-checklist.md` | Practical rollout checklist |
