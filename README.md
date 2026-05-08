@@ -9,7 +9,8 @@ AI agents are moving from chat interfaces into systems that can read files, call
 - A dependency-free Python CLI that audits MCP server configuration files.
 - Detection rules for risky local commands, unpinned package runners, secret exposure, unencrypted remote servers, missing auth, broad filesystem access, and dangerous execution flags.
 - Safe and risky MCP configuration examples for testing.
-- GitHub Actions validation for unit tests, Python compilation, SARIF report generation, and safe-example audit gates.
+- GitHub Actions validation for unit tests, Python compilation, SARIF report generation, JSON contract validation, and safe-example audit gates.
+- A published JSON output schema for downstream security dashboards, CI gates, and evidence repositories.
 - A threat model for MCP and agentic tool access.
 - A control matrix aligned to agentic AI security, identity, logging, and governance concerns.
 - A practical launch checklist for teams piloting AI agents.
@@ -48,6 +49,13 @@ Write SARIF for GitHub code scanning or security dashboards:
 
 ```bash
 python -m mcp_agent_security_kit.audit examples/mcp-config-risky.json --format sarif --output reports/mcp-audit.sarif
+```
+
+Write JSON and validate the published output contract:
+
+```bash
+python -m mcp_agent_security_kit.audit examples/mcp-config-risky.json --format json --output reports/mcp-audit.json
+python scripts/validate_json_output.py reports/mcp-audit.json
 ```
 
 Fail a pipeline when high-risk findings exist:
@@ -127,6 +135,9 @@ Risk score: 82 / 100
 | `docs/control-matrix.md` | Control matrix for identity, tools, logging, and governance |
 | `docs/launch-checklist.md` | Practical rollout checklist |
 | `docs/runtime-monitoring.md` | Runtime monitoring model for MCP tool calls, policy decisions, drift, and incident evidence |
+| `docs/json-output-contract.md` | JSON output contract and integration guidance |
+| `schema/audit-output.schema.json` | Machine-readable schema for audit JSON reports |
+| `scripts/validate_json_output.py` | Dependency-free JSON report contract validator |
 
 ## Security Position
 
