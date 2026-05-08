@@ -94,6 +94,7 @@ It also handles top-level server maps and remote server entries with `url`, `hea
 | MCP-010 | Filesystem-like tool lacks a read-only signal |
 | MCP-011 | Secret-like HTTP header values are configured inline |
 | MCP-012 | Secret-like command argument values are configured inline |
+| MCP-013 | Secret-like URL query parameter values are configured inline |
 
 ## Example Output
 
