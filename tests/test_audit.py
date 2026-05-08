@@ -2,7 +2,17 @@ import json
 from pathlib import Path
 import unittest
 
-from mcp_agent_security_kit.audit import audit_config, render_json, render_sarif, risk_score, should_fail
+from mcp_agent_security_kit.audit import (
+    audit_config,
+    compare_allowed_tool_drift,
+    extract_allowed_tools,
+    render_allowed_tool_drift_json,
+    render_allowed_tool_drift_markdown,
+    render_json,
+    render_sarif,
+    risk_score,
+    should_fail,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -315,6 +325,65 @@ class AuditTests(unittest.TestCase):
         )
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-017", rule_ids)
+
+    def test_extract_allowed_tools_handles_lists_and_maps(self):
+        tools = extract_allowed_tools(
+            {
+                "mcpServers": {
+                    "workspace": {
+                        "allowedTools": ["read_file", "search_docs"],
+                        "alwaysAllow": {"write_file": True, "delete_file": False},
+                    }
+                }
+            }
+        )
+        self.assertEqual(tools["workspace"], {"read_file", "search_docs", "write_file"})
+
+    def test_allowed_tool_drift_flags_high_impact_additions(self):
+        baseline = {
+            "mcpServers": {
+                "workspace": {
+                    "owner": "platform",
+                    "riskOwner": "security",
+                    "allowedTools": ["read_file", "search_docs"],
+                }
+            }
+        }
+        current = {
+            "mcpServers": {
+                "workspace": {
+                    "owner": "platform",
+                    "riskOwner": "security",
+                    "allowedTools": ["read_file", "search_docs", "write_file", "run_shell"],
+                }
+            }
+        }
+
+        drift = compare_allowed_tool_drift(baseline, current)
+        drift_by_tool = {item.tool: item for item in drift}
+
+        self.assertEqual(drift_by_tool["write_file"].severity, "high")
+        self.assertEqual(drift_by_tool["run_shell"].change, "added")
+
+    def test_allowed_tool_drift_flags_wildcard_as_critical(self):
+        drift = compare_allowed_tool_drift(
+            {"mcpServers": {"workspace": {"allowedTools": ["read_file"]}}},
+            {"mcpServers": {"workspace": {"allowedTools": ["read_file", "*"]}}},
+        )
+        self.assertEqual(drift[0].severity, "critical")
+        self.assertEqual(drift[0].tool, "*")
+
+    def test_allowed_tool_drift_renderers(self):
+        drift = compare_allowed_tool_drift(
+            {"mcpServers": {"workspace": {"allowedTools": ["read_file", "search_docs"]}}},
+            {"mcpServers": {"workspace": {"allowedTools": ["read_file", "write_file"]}}},
+        )
+        markdown = render_allowed_tool_drift_markdown(drift)
+        json_report = json.loads(render_allowed_tool_drift_json(drift))
+
+        self.assertIn("MCP Allowed Tool Drift", markdown)
+        self.assertIn("write_file", markdown)
+        self.assertEqual(len(json_report["drift"]), 2)
 
     def test_sarif_output_contains_rules_and_results(self):
         findings = audit_config({"mcpServers": {"remote": {"url": "http://example.test/sse"}}})
