@@ -658,6 +658,72 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-022", rule_ids)
 
+    def test_browser_remote_debugging_port_is_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "browser": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": [
+                            "browser-server.js",
+                            "--remote-debugging-port=9222",
+                            "--remote-allow-origins=*",
+                        ],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        evidence = " ".join(finding.evidence for finding in findings if finding.rule_id == "MCP-025")
+
+        self.assertIn("MCP-025", rule_ids)
+        self.assertIn("--remote-debugging-port=9222", evidence)
+        self.assertIn("--remote-allow-origins=*", evidence)
+
+    def test_browser_debugger_urls_are_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "browser": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["browser-server.js"],
+                        "cdpUrl": "http://127.0.0.1:9222/json/version",
+                        "webSocketDebuggerUrl": "ws://127.0.0.1:9222/devtools/browser/session-id",
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        evidence = " ".join(finding.evidence for finding in findings if finding.rule_id == "MCP-025")
+
+        self.assertIn("MCP-025", rule_ids)
+        self.assertIn("cdpUrl", evidence)
+        self.assertIn("webSocketDebuggerUrl", evidence)
+
+    def test_isolated_browser_without_debug_interface_is_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "browser": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": [
+                            "browser-server.js",
+                            "--user-data-dir",
+                            "./tmp/isolated-mcp-browser-profile",
+                        ],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-025", rule_ids)
+
     def test_cloud_metadata_network_exposure_is_flagged(self):
         findings = audit_config(
             {

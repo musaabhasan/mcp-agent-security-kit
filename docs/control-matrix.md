@@ -9,6 +9,7 @@
 | Least privilege | Grant read-only and narrow path access by default | Config review, access test |
 | Secrets | Store tokens in a secret manager or protected local environment | Secret references, vault policy |
 | Package integrity | Pin MCP package versions and container images, preferably with immutable digests, and review server updates | Lock files, image digests, release review notes |
+| Browser isolation | Use isolated browser profiles and avoid exposing DevTools or CDP sessions to agents | Browser config, MCP-025 scan results, approval record |
 | Prompt injection | Label untrusted content and inspect tool outputs before reuse | Test records, blocked examples |
 | Human approval | Require approval for high-impact, external, privileged, or irreversible actions | Approval logs |
 | Monitoring | Log prompts, tool arguments, tool outputs, denials, approvals, and downstream actions | SIEM queries, trace samples |
