@@ -195,6 +195,47 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-014", rule_ids)
 
+    def test_disabled_tls_validation_is_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "remote": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "url": "https://mcp.example.com/sse",
+                        "headers": {"Authorization": "Bearer ${MCP_REMOTE_TOKEN}"},
+                        "verify_ssl": False,
+                    },
+                    "proxy-wrapper": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["server.js", "--skip-tls-verify"],
+                        "env": {"NODE_TLS_REJECT_UNAUTHORIZED": "0"},
+                    },
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertIn("MCP-015", rule_ids)
+
+    def test_normal_tls_validation_config_is_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "remote": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "url": "https://mcp.example.com/sse",
+                        "headers": {"Authorization": "Bearer ${MCP_REMOTE_TOKEN}"},
+                        "verify_ssl": True,
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-015", rule_ids)
+
     def test_sarif_output_contains_rules_and_results(self):
         findings = audit_config({"mcpServers": {"remote": {"url": "http://example.test/sse"}}})
         report = json.loads(render_sarif(findings))

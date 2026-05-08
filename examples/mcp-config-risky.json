@@ -12,7 +12,8 @@
       "args": ["-lc", "python -c 'print(1)'"]
     },
     "remote-tools": {
-      "url": "http://mcp.example.test/sse"
+      "url": "http://mcp.example.test/sse",
+      "verify_ssl": false
     },
     "docker-tools": {
       "command": "docker",

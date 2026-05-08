@@ -24,9 +24,40 @@ DANGEROUS_ARG_PATTERN = re.compile(
     r"(--privileged|--net=host|--network=host|--unsafe|--allow-all|--dangerously|--no-sandbox|--disable-sandbox)",
     re.IGNORECASE,
 )
+TLS_SKIP_ARG_PATTERN = re.compile(
+    r"^(--insecure|-k|--skip-tls-verify|--skip-verify|--no-verify|--tls-skip-verify|--disable-tls-verification)$",
+    re.IGNORECASE,
+)
 SHELL_COMMANDS = {"bash", "sh", "zsh", "cmd", "cmd.exe", "powershell", "pwsh", "python", "python3", "node", "ruby", "perl"}
 PACKAGE_RUNNERS = {"npx", "pnpm", "npm", "bunx", "uvx", "pipx"}
 FILESYSTEM_WORDS = ("filesystem", "file", "fs", "directory", "path")
+TLS_VERIFY_FALSE_KEYS = {
+    "rejectunauthorized",
+    "reject_unauthorized",
+    "sslverify",
+    "ssl_verify",
+    "tlsverify",
+    "tls_verify",
+    "verifyssl",
+    "verify_ssl",
+    "verifytls",
+    "verify_tls",
+    "verifycert",
+    "verify_cert",
+    "verifycertificate",
+    "verify_certificate",
+}
+TLS_SKIP_TRUE_KEYS = {
+    "allowinsecure",
+    "allow_insecure",
+    "insecure",
+    "skiptlsverify",
+    "skip_tls_verify",
+    "skipverify",
+    "skip_verify",
+    "tlsinsecure",
+    "tls_insecure",
+}
 
 
 @dataclass(frozen=True)
@@ -113,6 +144,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 "Remote MCP server has no clear authentication signal.",
                 "Require user or service authentication and pass tokens through a controlled client path.",
                 url,
+            )
+        )
+
+    tls_validation_disabled = _tls_validation_disabled(server, env, args)
+    if tls_validation_disabled:
+        findings.append(
+            Finding(
+                "high",
+                "MCP-015",
+                name,
+                "TLS certificate validation is disabled.",
+                "Keep certificate validation enabled for remote MCP traffic and fix trust-store or certificate-chain issues instead of bypassing verification.",
+                ", ".join(tls_validation_disabled),
             )
         )
 
@@ -504,6 +548,47 @@ def _inline_url_userinfo_secrets(url: str) -> list[str]:
     if parsed.password and _is_inline_secret_value(parsed.password):
         userinfo_parts.append("password")
     return userinfo_parts
+
+
+def _tls_validation_disabled(server: dict[str, Any], env: dict[str, Any], args: list[str]) -> list[str]:
+    evidence: list[str] = []
+
+    for key, value in server.items():
+        normalized = _normalize_key(str(key))
+        if normalized in TLS_VERIFY_FALSE_KEYS and _is_explicit_false(value):
+            evidence.append(str(key))
+        if normalized in TLS_SKIP_TRUE_KEYS and _is_explicit_true(value):
+            evidence.append(str(key))
+
+    for key, value in env.items():
+        normalized = str(key).strip().upper()
+        if normalized == "NODE_TLS_REJECT_UNAUTHORIZED" and str(value).strip() == "0":
+            evidence.append(str(key))
+        if normalized == "PYTHONHTTPSVERIFY" and str(value).strip() == "0":
+            evidence.append(str(key))
+
+    evidence.extend(arg for arg in args if TLS_SKIP_ARG_PATTERN.match(arg.strip()))
+    return sorted(set(evidence))
+
+
+def _normalize_key(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", value.lower())
+
+
+def _is_explicit_false(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value is False
+    if isinstance(value, (int, float)):
+        return value == 0
+    return str(value).strip().lower() in {"false", "0", "no", "off"}
+
+
+def _is_explicit_true(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value is True
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value).strip().lower() in {"true", "1", "yes", "on"}
 
 
 def _runner_package_unpinned(command: str, args: list[str]) -> bool:
