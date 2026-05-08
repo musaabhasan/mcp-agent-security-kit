@@ -373,6 +373,40 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-017", rule_ids)
 
+    def test_broad_auth_scope_is_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "github-agent": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "url": "https://mcp.example.com/sse",
+                        "headers": {"Authorization": "Bearer ${MCP_REMOTE_TOKEN}"},
+                        "auth": {"oauthScopes": ["repo:read", "admin:org", "delete:packages"]},
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertIn("MCP-019", rule_ids)
+
+    def test_narrow_auth_scopes_are_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "github-agent": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "url": "https://mcp.example.com/sse",
+                        "headers": {"Authorization": "Bearer ${MCP_REMOTE_TOKEN}"},
+                        "auth": {"oauthScopes": ["read:issues", "read:pull_requests"]},
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-019", rule_ids)
+
     def test_extract_allowed_tools_handles_lists_and_maps(self):
         tools = extract_allowed_tools(
             {

@@ -102,6 +102,21 @@ TLS_SKIP_TRUE_KEYS = {
     "tlsinsecure",
     "tls_insecure",
 }
+BROAD_AUTH_SCOPE_KEYS = {
+    "scope",
+    "scopes",
+    "oauthscope",
+    "oauthscopes",
+    "permission",
+    "permissions",
+    "authscope",
+    "authscopes",
+    "oauthpermissions",
+}
+BROAD_AUTH_SCOPE_PATTERN = re.compile(
+    r"(^\*$|(^|[:/._-])(admin|administrator|root|owner|full[-_ ]?access|read[-_ ]?write|delete)(?:$|[:/._-])|[:.]\*$)",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -277,6 +292,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 "Remote MCP server has no clear authentication signal.",
                 "Require user or service authentication and pass tokens through a controlled client path.",
                 url,
+            )
+        )
+
+    broad_auth_scopes = _broad_auth_scopes(server)
+    if broad_auth_scopes:
+        findings.append(
+            Finding(
+                "high",
+                "MCP-019",
+                name,
+                "Authentication scopes or permissions look overbroad.",
+                "Use the narrowest provider scopes needed by this MCP server and require owner approval for administrative, wildcard, delete, or full-access permissions.",
+                ", ".join(broad_auth_scopes),
             )
         )
 
@@ -900,6 +928,45 @@ def _auto_approval_wildcards(server: dict[str, Any]) -> list[str]:
         if _contains_wildcard_approval(value):
             evidence.append(str(key))
     return sorted(set(evidence))
+
+
+def _broad_auth_scopes(value: Any, path: str = "") -> list[str]:
+    evidence: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_path = f"{path}.{key}" if path else str(key)
+            if _normalize_key(str(key)) in BROAD_AUTH_SCOPE_KEYS:
+                evidence.extend(
+                    f"{key_path}={scope}"
+                    for scope in _scope_values(item)
+                    if BROAD_AUTH_SCOPE_PATTERN.search(scope.strip())
+                )
+                continue
+            evidence.extend(_broad_auth_scopes(item, key_path))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            evidence.extend(_broad_auth_scopes(item, f"{path}[{index}]"))
+    return sorted(set(evidence))
+
+
+def _scope_values(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [scope.strip() for scope in re.split(r"[\s,]+", value) if scope.strip()]
+    if isinstance(value, list):
+        scopes: list[str] = []
+        for item in value:
+            scopes.extend(_scope_values(item))
+        return scopes
+    if isinstance(value, dict):
+        scopes = []
+        for key, item in value.items():
+            if isinstance(item, bool):
+                if item:
+                    scopes.append(str(key))
+                continue
+            scopes.extend(_scope_values(item))
+        return scopes
+    return []
 
 
 def _allowed_tools_for_server(server: dict[str, Any]) -> set[str]:
