@@ -451,6 +451,48 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-020", rule_ids)
 
+    def test_env_files_are_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "runtime": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": [
+                            "server.js",
+                            "--env-file=.env.production",
+                            "--dotenv",
+                            "./secrets.env",
+                        ],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertIn("MCP-021", rule_ids)
+
+    def test_sample_env_files_are_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "runtime": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": [
+                            "server.js",
+                            "--env-file",
+                            ".env.example",
+                            "./sample.env",
+                        ],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-021", rule_ids)
+
     def test_extract_allowed_tools_handles_lists_and_maps(self):
         tools = extract_allowed_tools(
             {
