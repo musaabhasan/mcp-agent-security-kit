@@ -584,6 +584,57 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-022", rule_ids)
 
+    def test_cloud_metadata_network_exposure_is_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "fetch": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": [
+                            "fetch-server.js",
+                            "--allowed-host",
+                            "169.254.169.254",
+                        ],
+                        "allowedHosts": ["api.example.com", "metadata.google.internal"],
+                    },
+                    "browser": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["browser-server.js"],
+                        "egressAllowlist": "*",
+                    },
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        metadata_evidence = " ".join(finding.evidence for finding in findings if finding.rule_id == "MCP-024")
+
+        self.assertIn("MCP-024", rule_ids)
+        self.assertIn("169.254.169.254", metadata_evidence)
+        self.assertIn("allowedHosts", metadata_evidence)
+        self.assertIn("egressAllowlist", metadata_evidence)
+
+    def test_explicit_non_metadata_network_allowlist_is_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "fetch": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["fetch-server.js"],
+                        "allowedHosts": ["api.example.com", "docs.example.com"],
+                        "egressAllowlist": "${MCP_EGRESS_ALLOWLIST}",
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-024", rule_ids)
+
     def test_extract_allowed_tools_handles_lists_and_maps(self):
         tools = extract_allowed_tools(
             {

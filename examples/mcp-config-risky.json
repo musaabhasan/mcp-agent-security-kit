@@ -38,6 +38,15 @@
         "--cookie-file=./cookies.json"
       ]
     },
+    "web-fetcher": {
+      "command": "node",
+      "args": [
+        "fetch-server.js",
+        "--allowed-host",
+        "169.254.169.254"
+      ],
+      "egressAllowlist": "*"
+    },
     "helpdesk-actions": {
       "command": "node",
       "args": ["action-server.js"],
