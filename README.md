@@ -12,6 +12,7 @@ AI agents are moving from chat interfaces into systems that can read files, call
 - A threat model for MCP and agentic tool access.
 - A control matrix aligned to agentic AI security, identity, logging, and governance concerns.
 - A practical launch checklist for teams piloting AI agents.
+- Runtime monitoring guidance for tool telemetry, drift detection, evidence handling, and incident triggers.
 
 ## Why This Topic Matters Now
 
@@ -111,6 +112,7 @@ Risk score: 82 / 100
 | `docs/agent-identity-model.md` | Identity and authorization model for MCP-enabled agents |
 | `docs/control-matrix.md` | Control matrix for identity, tools, logging, and governance |
 | `docs/launch-checklist.md` | Practical rollout checklist |
+| `docs/runtime-monitoring.md` | Runtime monitoring model for MCP tool calls, policy decisions, drift, and incident evidence |
 
 ## Security Position
 
