@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/musaabhasan/mcp-agent-security-kit/schema/audit-output.schema.json",
+  "title": "MCP Agent Security Audit JSON Output",
+  "type": "object",
+  "required": ["risk_score", "findings"],
+  "additionalProperties": false,
+  "properties": {
+    "risk_score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "rule_id", "server", "message", "recommendation", "evidence"],
+        "additionalProperties": false,
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"]
+          },
+          "rule_id": {
+            "type": "string",
+            "pattern": "^MCP-[0-9]{3}$"
+          },
+          "server": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recommendation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

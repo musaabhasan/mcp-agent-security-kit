@@ -33,5 +33,10 @@ jobs:
       - name: Generate SARIF smoke report
         run: python -m mcp_agent_security_kit.audit examples/mcp-config-risky.json --format sarif --output reports/mcp-audit.sarif
 
+      - name: Generate and validate JSON smoke report
+        run: |
+          python -m mcp_agent_security_kit.audit examples/mcp-config-risky.json --format json --output reports/mcp-audit.json
+          python scripts/validate_json_output.py reports/mcp-audit.json
+
       - name: Run high-severity audit gate on safer example
         run: python -m mcp_agent_security_kit.audit examples/mcp-config-safer.json --fail-on high

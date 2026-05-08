@@ -1,7 +1,11 @@
 import json
+from pathlib import Path
 import unittest
 
-from mcp_agent_security_kit.audit import audit_config, render_sarif, risk_score, should_fail
+from mcp_agent_security_kit.audit import audit_config, render_json, render_sarif, risk_score, should_fail
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class AuditTests(unittest.TestCase):
@@ -324,6 +328,30 @@ class AuditTests(unittest.TestCase):
         self.assertTrue(all(result["level"] in {"note", "warning", "error"} for result in run["results"]))
         security_severities = [rule["properties"]["security-severity"] for rule in run["tool"]["driver"]["rules"]]
         self.assertTrue(all(0.0 <= float(value) <= 10.0 for value in security_severities))
+
+    def test_json_output_matches_published_contract(self):
+        findings = audit_config({"mcpServers": {"remote": {"url": "http://example.test/sse"}}})
+        report = json.loads(render_json(findings))
+        schema = json.loads((ROOT / "schema" / "audit-output.schema.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(sorted(report.keys()), sorted(schema["required"]))
+        self.assertIsInstance(report["risk_score"], int)
+        self.assertGreaterEqual(report["risk_score"], schema["properties"]["risk_score"]["minimum"])
+        self.assertLessEqual(report["risk_score"], schema["properties"]["risk_score"]["maximum"])
+        self.assertIsInstance(report["findings"], list)
+
+        finding_schema = schema["properties"]["findings"]["items"]
+        required_fields = set(finding_schema["required"])
+        severities = set(finding_schema["properties"]["severity"]["enum"])
+
+        for finding in report["findings"]:
+            self.assertEqual(set(finding), required_fields)
+            self.assertIn(finding["severity"], severities)
+            self.assertRegex(finding["rule_id"], finding_schema["properties"]["rule_id"]["pattern"])
+            self.assertTrue(finding["server"])
+            self.assertTrue(finding["message"])
+            self.assertTrue(finding["recommendation"])
+            self.assertIsInstance(finding["evidence"], str)
 
 
 if __name__ == "__main__":
