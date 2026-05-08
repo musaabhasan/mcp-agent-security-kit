@@ -88,6 +88,16 @@ class Finding:
     evidence: str = ""
 
 
+@dataclass(frozen=True)
+class AllowedToolDrift:
+    severity: str
+    server: str
+    tool: str
+    change: str
+    message: str
+    recommendation: str
+
+
 def load_config(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as handle:
         loaded = json.load(handle)
@@ -130,6 +140,85 @@ def audit_config(config: dict[str, Any]) -> list[Finding]:
     for server_name, server in servers.items():
         findings.extend(audit_server(server_name, server))
     return sorted(findings, key=lambda item: (-SEVERITY_ORDER[item.severity], item.server, item.rule_id))
+
+
+def extract_allowed_tools(config: dict[str, Any]) -> dict[str, set[str]]:
+    servers = extract_servers(config)
+    return {
+        server_name: tools
+        for server_name, server in servers.items()
+        if (tools := _allowed_tools_for_server(server))
+    }
+
+
+def compare_allowed_tool_drift(
+    baseline_config: dict[str, Any], current_config: dict[str, Any]
+) -> list[AllowedToolDrift]:
+    baseline = extract_allowed_tools(baseline_config)
+    current = extract_allowed_tools(current_config)
+    drift: list[AllowedToolDrift] = []
+
+    for server in sorted(set(baseline) | set(current)):
+        baseline_tools = baseline.get(server, set())
+        current_tools = current.get(server, set())
+
+        for tool in sorted(current_tools - baseline_tools):
+            severity = _allowed_tool_drift_severity(tool, "added")
+            drift.append(
+                AllowedToolDrift(
+                    severity=severity,
+                    server=server,
+                    tool=tool,
+                    change="added",
+                    message="Allowed tool was added after the approved baseline.",
+                    recommendation=_allowed_tool_recommendation(tool, severity),
+                )
+            )
+
+        for tool in sorted(baseline_tools - current_tools):
+            drift.append(
+                AllowedToolDrift(
+                    severity="low",
+                    server=server,
+                    tool=tool,
+                    change="removed",
+                    message="Allowed tool was removed from the approved baseline.",
+                    recommendation="Confirm dependent workflows no longer require this tool and keep the removal in the change record.",
+                )
+            )
+
+    return sorted(drift, key=lambda item: (-SEVERITY_ORDER[item.severity], item.server, item.change, item.tool))
+
+
+def render_allowed_tool_drift_markdown(drift: list[AllowedToolDrift]) -> str:
+    lines = ["# MCP Allowed Tool Drift", ""]
+    if not drift:
+        lines.extend(["No allowed-tool drift detected.", ""])
+        return "\n".join(lines)
+
+    lines.extend(
+        [
+            "| Severity | Server | Tool | Change | Finding | Recommendation |",
+            "| --- | --- | --- | --- | --- | --- |",
+        ]
+    )
+    for item in drift:
+        lines.append(
+            "| {severity} | {server} | {tool} | {change} | {message} | {recommendation} |".format(
+                severity=item.severity,
+                server=_escape_cell(item.server),
+                tool=_escape_cell(item.tool),
+                change=item.change,
+                message=_escape_cell(item.message),
+                recommendation=_escape_cell(item.recommendation),
+            )
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def render_allowed_tool_drift_json(drift: list[AllowedToolDrift]) -> str:
+    return json.dumps({"drift": [asdict(item) for item in drift]}, indent=2)
 
 
 def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
@@ -639,6 +728,60 @@ def _auto_approval_wildcards(server: dict[str, Any]) -> list[str]:
         if _contains_wildcard_approval(value):
             evidence.append(str(key))
     return sorted(set(evidence))
+
+
+def _allowed_tools_for_server(server: dict[str, Any]) -> set[str]:
+    tools: set[str] = set()
+    for key, value in server.items():
+        if _normalize_key(str(key)) in AUTO_APPROVAL_KEYS:
+            tools.update(_collect_tool_names(value))
+    return {tool for tool in tools if tool}
+
+
+def _collect_tool_names(value: Any) -> set[str]:
+    if isinstance(value, str):
+        return {value.strip()} if value.strip() else set()
+    if isinstance(value, list):
+        tools: set[str] = set()
+        for item in value:
+            tools.update(_collect_tool_names(item))
+        return tools
+    if isinstance(value, dict):
+        tools: set[str] = set()
+        for key, item in value.items():
+            if isinstance(item, bool):
+                if item:
+                    tools.add(str(key))
+                continue
+            nested = _collect_tool_names(item)
+            if nested:
+                tools.update(nested)
+            elif item:
+                tools.add(str(key))
+        return tools
+    return set()
+
+
+def _allowed_tool_drift_severity(tool: str, change: str) -> str:
+    if change != "added":
+        return "low"
+    if tool.strip().lower() in AUTO_APPROVAL_WILDCARDS:
+        return "critical"
+    if re.search(
+        r"(write|delete|remove|exec|shell|command|run|deploy|publish|send|email|post|request|http|create|update|grant|token|secret|credential|upload|download|push|merge)",
+        tool,
+        re.IGNORECASE,
+    ):
+        return "high"
+    return "medium"
+
+
+def _allowed_tool_recommendation(tool: str, severity: str) -> str:
+    if severity == "critical":
+        return "Do not approve wildcard tool access. Replace it with explicit low-impact tool names and require confirmation for write, execution, or external-action tools."
+    if severity == "high":
+        return f"Require change approval, owner sign-off, and runtime monitoring before allowing `{tool}` in production."
+    return f"Confirm `{tool}` is required for the approved workflow and record the change owner."
 
 
 def _contains_wildcard_approval(value: Any) -> bool:

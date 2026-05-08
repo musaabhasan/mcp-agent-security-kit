@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "workspace": {
+      "owner": "security-engineering",
+      "riskOwner": "ai-platform-owner",
+      "command": "node",
+      "args": ["server.js"],
+      "allowedTools": ["read_file", "search_docs"]
+    },
+    "tickets": {
+      "owner": "it-operations",
+      "riskOwner": "service-desk-owner",
+      "url": "https://mcp.example.com/sse",
+      "headers": {
+        "Authorization": "Bearer ${MCP_TICKET_SEARCH_TOKEN}"
+      },
+      "allowedTools": ["search_tickets"]
+    }
+  }
+}
+

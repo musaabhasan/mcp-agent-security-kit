@@ -11,6 +11,7 @@ AI agents are moving from chat interfaces into systems that can read files, call
 - Safe and risky MCP configuration examples for testing.
 - GitHub Actions validation for unit tests, Python compilation, SARIF report generation, JSON contract validation, and safe-example audit gates.
 - A published JSON output schema for downstream security dashboards, CI gates, and evidence repositories.
+- Allowed-tool drift comparison between an approved baseline and the current MCP configuration.
 - A threat model for MCP and agentic tool access.
 - A threat scenario library for prompt-to-tool abuse, tool poisoning, approval bypass, and toxic tool flows.
 - A control matrix aligned to agentic AI security, identity, logging, and governance concerns.
@@ -57,6 +58,12 @@ Write JSON and validate the published output contract:
 ```bash
 python -m mcp_agent_security_kit.audit examples/mcp-config-risky.json --format json --output reports/mcp-audit.json
 python scripts/validate_json_output.py reports/mcp-audit.json
+```
+
+Compare allowed-tool drift between an approved baseline and the current config:
+
+```bash
+python scripts/compare_allowed_tools.py examples/allowed-tools-baseline.json examples/allowed-tools-current.json
 ```
 
 Fail a pipeline when high-risk findings exist:
@@ -110,6 +117,12 @@ It also handles top-level server maps and remote server entries with `url`, `hea
 | MCP-016 | Docker socket access is exposed to the MCP server |
 | MCP-017 | Tool auto-approval is configured with a wildcard |
 
+## Change-Control Utilities
+
+| Utility | Purpose |
+| --- | --- |
+| `scripts/compare_allowed_tools.py` | Compares allowed tool lists between a baseline and current config, then flags added high-impact tools and wildcard approvals |
+
 ## Example Output
 
 ```text
@@ -138,6 +151,7 @@ Risk score: 82 / 100
 | `docs/launch-checklist.md` | Practical rollout checklist |
 | `docs/runtime-monitoring.md` | Runtime monitoring model for MCP tool calls, policy decisions, drift, and incident evidence |
 | `docs/json-output-contract.md` | JSON output contract and integration guidance |
+| `docs/allowed-tool-drift.md` | Allowed-tool baseline comparison workflow for CI and change control |
 | `schema/audit-output.schema.json` | Machine-readable schema for audit JSON reports |
 | `scripts/validate_json_output.py` | Dependency-free JSON report contract validator |
 
