@@ -13,6 +13,7 @@ AI agents are moving from chat interfaces into systems that can read files, call
 - Browser debugging interface exposure detection for DevTools, CDP, and remote debugging endpoints.
 - Kubernetes service account exposure detection for in-cluster agent workloads.
 - SSH agent socket exposure detection for Git, deployment, and server-authentication boundaries.
+- Git credential helper exposure detection for source-control authority boundaries.
 - Safe and risky MCP configuration examples for testing.
 - GitHub Actions validation for unit tests, Python compilation, SARIF report generation, JSON contract validation, and safe-example audit gates.
 - A published JSON output schema for downstream security dashboards, CI gates, and evidence repositories.
@@ -144,6 +145,7 @@ It also handles top-level server maps and remote server entries with `url`, `hea
 | MCP-025 | Browser debugging interface is exposed to the MCP server |
 | MCP-026 | Kubernetes service account access is exposed to the MCP server |
 | MCP-027 | SSH agent socket access is exposed to the MCP server |
+| MCP-028 | Git credential helper access is exposed to the MCP server |
 
 ## Change-Control Utilities
 
@@ -191,6 +193,7 @@ Risk score: 82 / 100
 | `docs/cloud-metadata-exposure.md` | Review guidance for preventing agent-accessible network tools from reaching cloud instance metadata endpoints |
 | `docs/kubernetes-service-account-exposure.md` | Review guidance for preventing Kubernetes service account tokens and in-cluster API access from becoming agent authority boundaries |
 | `docs/ssh-agent-socket-exposure.md` | Review guidance for preventing SSH agent sockets and forwarded agent pipes from becoming agent authority boundaries |
+| `docs/git-credential-helper-exposure.md` | Review guidance for preventing Git credential helpers, askpass helpers, and credential files from becoming agent authority boundaries |
 | `docs/severity-overrides.md` | Local severity override policy workflow for adapting rule severities without suppressing evidence |
 | `schema/audit-output.schema.json` | Machine-readable schema for audit JSON reports |
 | `scripts/validate_json_output.py` | Dependency-free JSON report contract validator |
