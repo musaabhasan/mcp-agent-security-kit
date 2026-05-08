@@ -17,7 +17,16 @@
     },
     "docker-tools": {
       "command": "docker",
-      "args": ["run", "--privileged", "--network=host", "-v", "/:/host", "example/mcp:latest"]
+      "args": [
+        "run",
+        "--privileged",
+        "--network=host",
+        "-v",
+        "/:/host",
+        "-v",
+        "/var/run/docker.sock:/var/run/docker.sock",
+        "example/mcp:latest"
+      ]
     }
   }
 }

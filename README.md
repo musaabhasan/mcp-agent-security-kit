@@ -97,6 +97,7 @@ It also handles top-level server maps and remote server entries with `url`, `hea
 | MCP-013 | Secret-like URL query parameter values are configured inline |
 | MCP-014 | Credential-like URL userinfo values are configured inline |
 | MCP-015 | TLS certificate validation is disabled |
+| MCP-016 | Docker socket access is exposed to the MCP server |
 
 ## Example Output
 

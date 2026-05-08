@@ -236,6 +236,48 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-015", rule_ids)
 
+    def test_docker_socket_mount_is_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "docker-tools": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "docker",
+                        "args": [
+                            "run",
+                            "--mount",
+                            "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock",
+                            "example/mcp:latest",
+                        ],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertIn("MCP-016", rule_ids)
+
+    def test_windows_docker_engine_pipe_is_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "windows-docker-tools": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "docker",
+                        "args": [
+                            "run",
+                            "-v",
+                            "//./pipe/docker_engine://./pipe/docker_engine",
+                            "example/mcp:latest",
+                        ],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertIn("MCP-016", rule_ids)
+
     def test_sarif_output_contains_rules_and_results(self):
         findings = audit_config({"mcpServers": {"remote": {"url": "http://example.test/sse"}}})
         report = json.loads(render_sarif(findings))
