@@ -152,6 +152,12 @@ BROWSER_SESSION_OPTIONS = {
     "--session-file",
     "--storage-state",
 }
+BROWSER_DEBUG_OPTIONS = {
+    "--remote-debugging-address",
+    "--remote-debugging-pipe",
+    "--remote-debugging-port",
+    "--remote-allow-origins",
+}
 BROWSER_PROFILE_PATH_PATTERNS = (
     re.compile(r"(^|/|:|=|,|;|~)(\.config/(google-chrome|chromium|brave-browser|microsoft-edge))(/|:|$)", re.IGNORECASE),
     re.compile(r"(^|/|:|=|,|;|~)(\.mozilla/firefox)(/|:|$)", re.IGNORECASE),
@@ -600,6 +606,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 "Browser session or profile data is exposed to the MCP server.",
                 "Do not grant agent-accessible browser tools direct access to existing browser profiles, cookies, or storage-state files. Use a fresh isolated profile, short-lived test account, and explicit domain allowlist instead.",
                 ", ".join(browser_session_exposures),
+            )
+        )
+
+    browser_debug_exposures = _browser_debug_exposures(server)
+    if browser_debug_exposures:
+        findings.append(
+            Finding(
+                "high",
+                "MCP-025",
+                name,
+                "Browser debugging interface is exposed to the MCP server.",
+                "Do not connect agent-accessible browser tools to existing DevTools or CDP sessions. Use an isolated browser context, ephemeral profile, localhost-only debugging when unavoidable, and explicit domain and action allowlists.",
+                ", ".join(browser_debug_exposures),
             )
         )
 
@@ -1442,6 +1461,62 @@ def _is_inline_session_reference(value: str) -> bool:
         or "auth-state" in filename
         or filename in {"state.json", "session.json", "sessions.json"}
     )
+
+
+def _browser_debug_exposures(value: Any, path: str = "") -> list[str]:
+    evidence: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_path = f"{path}.{key}" if path else str(key)
+            if _normalize_key(str(key)) in {
+                "browserdebugurl",
+                "cdpendpoint",
+                "cdpurl",
+                "debuggerurl",
+                "devtoolsurl",
+                "remotedebuggingaddress",
+                "remotedebuggingpipe",
+                "remotedebuggingport",
+                "websocketdebuggerurl",
+            }:
+                for item_value in _debug_values(item):
+                    if _is_browser_debug_reference(item_value):
+                        evidence.append(f"{key_path}={item_value}")
+            evidence.extend(_browser_debug_exposures(item, key_path))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            evidence.extend(_browser_debug_exposures(item, f"{path}[{index}]"))
+    elif isinstance(value, (str, int, float)):
+        text = str(value).strip()
+        if text and _is_browser_debug_reference(text):
+            evidence.append(f"{path}={text}" if path else text)
+    return sorted(set(evidence))
+
+
+def _debug_values(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, (int, float)):
+        return [str(value)]
+    if isinstance(value, list):
+        return [str(item) for item in value if isinstance(item, (str, int, float))]
+    return []
+
+
+def _is_browser_debug_reference(value: str) -> bool:
+    if _is_placeholder_reference(value):
+        return False
+    normalized = value.strip().strip('"').strip("'")
+    lowered = normalized.lower()
+    if not lowered:
+        return False
+    if any(lowered == option or lowered.startswith(f"{option}=") for option in BROWSER_DEBUG_OPTIONS):
+        return True
+    if "--remote-debugging-" in lowered or "--remote-allow-origins=*" in lowered:
+        return True
+    if re.search(r"(^|[/:])92(22|23|29)(/json|$|[/?#])", lowered):
+        return True
+    return any(marker in lowered for marker in ("/json/version", "/json/list", "devtools/browser", "websocketdebuggerurl"))
 
 
 def _cloud_metadata_exposures(value: Any, path: str = "") -> list[str]:
