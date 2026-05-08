@@ -127,6 +127,8 @@ class AuditTests(unittest.TestCase):
         self.assertIn("MCP-001", rule_ids)
         self.assertIn("MCP-001", result_ids)
         self.assertTrue(all(result["level"] in {"note", "warning", "error"} for result in run["results"]))
+        security_severities = [rule["properties"]["security-severity"] for rule in run["tool"]["driver"]["rules"]]
+        self.assertTrue(all(0.0 <= float(value) <= 10.0 for value in security_severities))
 
 
 if __name__ == "__main__":
