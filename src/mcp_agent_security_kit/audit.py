@@ -75,6 +75,14 @@ AUTO_APPROVAL_KEYS = {
     "allowed_tools",
 }
 AUTO_APPROVAL_WILDCARDS = {"*", "all", "any", ".*"}
+EXTERNAL_ACTION_TOOL_PATTERN = re.compile(
+    r"(^|[_:.-])("
+    r"approve|commit|create|delete|deploy|email|grant|http|invite|merge|"
+    r"message|payment|post|publish|push|refund|remove|request|send|submit|"
+    r"ticket|transfer|update|upload|webhook|write"
+    r")([_:.-]|$)",
+    re.IGNORECASE,
+)
 TLS_VERIFY_FALSE_KEYS = {
     "rejectunauthorized",
     "reject_unauthorized",
@@ -558,6 +566,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 "MCP tool auto-approval is configured with a wildcard.",
                 "Replace wildcard auto-approval with explicit tool names and require confirmation for tools that write, delete, execute code, send data, or call external services.",
                 ", ".join(auto_approval_wildcards),
+            )
+        )
+
+    external_action_auto_approvals = _external_action_auto_approvals(server)
+    if external_action_auto_approvals:
+        findings.append(
+            Finding(
+                "high",
+                "MCP-023",
+                name,
+                "External-action tools are configured for automatic approval.",
+                "Require explicit confirmation, policy evaluation, and audit logging before tools can write, send, publish, deploy, merge, or call external services.",
+                ", ".join(external_action_auto_approvals),
             )
         )
 
@@ -1086,6 +1107,14 @@ def _allowed_tool_drift_severity(tool: str, change: str) -> str:
     ):
         return "high"
     return "medium"
+
+
+def _external_action_auto_approvals(server: dict[str, Any]) -> list[str]:
+    return sorted(
+        tool
+        for tool in _allowed_tools_for_server(server)
+        if tool.strip().lower() not in AUTO_APPROVAL_WILDCARDS and EXTERNAL_ACTION_TOOL_PATTERN.search(tool)
+    )
 
 
 def _allowed_tool_recommendation(tool: str, severity: str) -> str:
