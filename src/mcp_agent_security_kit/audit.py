@@ -483,6 +483,69 @@ def render_markdown(findings: list[Finding]) -> str:
     return "\n".join(lines)
 
 
+def render_owner_remediation_summary(config: dict[str, Any], findings: list[Finding]) -> str:
+    servers = extract_servers(config)
+    grouped: dict[str, list[Finding]] = {}
+
+    for finding in findings:
+        owner = _finding_owner(finding, servers)
+        grouped.setdefault(owner, []).append(finding)
+
+    lines = ["# Owner Remediation Summary", ""]
+    if not findings:
+        lines.extend(["No remediation items detected.", ""])
+        return "\n".join(lines)
+
+    lines.extend(
+        [
+            "| Owner | Critical | High | Medium | Low | Action |",
+            "| --- | ---: | ---: | ---: | ---: | --- |",
+        ]
+    )
+    for owner, owner_findings in sorted(
+        grouped.items(), key=lambda item: (-_owner_max_severity(item[1]), item[0].lower())
+    ):
+        counts = {severity: 0 for severity in SEVERITY_ORDER}
+        for finding in owner_findings:
+            counts[finding.severity] += 1
+        lines.append(
+            "| {owner} | {critical} | {high} | {medium} | {low} | {action} |".format(
+                owner=_escape_cell(owner),
+                critical=counts["critical"],
+                high=counts["high"],
+                medium=counts["medium"],
+                low=counts["low"],
+                action=_escape_cell(_owner_action(owner_findings)),
+            )
+        )
+
+    lines.append("")
+    for owner, owner_findings in sorted(
+        grouped.items(), key=lambda item: (-_owner_max_severity(item[1]), item[0].lower())
+    ):
+        lines.extend(
+            [
+                f"## {owner}",
+                "",
+                "| Severity | Rule | Server | Finding | Recommendation |",
+                "| --- | --- | --- | --- | --- |",
+            ]
+        )
+        for finding in sorted(owner_findings, key=lambda item: (-SEVERITY_ORDER[item.severity], item.server, item.rule_id)):
+            lines.append(
+                "| {severity} | {rule_id} | {server} | {message} | {recommendation} |".format(
+                    severity=finding.severity,
+                    rule_id=finding.rule_id,
+                    server=_escape_cell(finding.server),
+                    message=_escape_cell(finding.message),
+                    recommendation=_escape_cell(finding.recommendation),
+                )
+            )
+        lines.append("")
+
+    return "\n".join(lines)
+
+
 def render_json(findings: list[Finding]) -> str:
     return json.dumps(
         {
@@ -571,6 +634,30 @@ def _command_name(value: Any) -> str:
         return ""
     command = str(value).strip().strip('"').strip("'")
     return os.path.basename(command).lower()
+
+
+def _finding_owner(finding: Finding, servers: dict[str, dict[str, Any]]) -> str:
+    server = servers.get(finding.server, {})
+    for key in ("riskOwner", "risk_owner", "owner", "maintainer"):
+        value = server.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return "unassigned"
+
+
+def _owner_max_severity(findings: list[Finding]) -> int:
+    return max(SEVERITY_ORDER[finding.severity] for finding in findings)
+
+
+def _owner_action(findings: list[Finding]) -> str:
+    max_severity = _owner_max_severity(findings)
+    if max_severity >= SEVERITY_ORDER["critical"]:
+        return "Block release and remediate critical items before enabling the server."
+    if max_severity >= SEVERITY_ORDER["high"]:
+        return "Require owner remediation plan before production rollout."
+    if max_severity >= SEVERITY_ORDER["medium"]:
+        return "Track remediation in the next change window."
+    return "Record ownership and monitor during routine review."
 
 
 def _string_list(value: Any) -> list[str]:
@@ -870,6 +957,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--format", choices=("markdown", "json", "sarif"), default="markdown", help="Output format.")
     parser.add_argument("--output", type=Path, help="Optional output report path.")
     parser.add_argument(
+        "--append-owner-summary",
+        action="store_true",
+        help="Append a Markdown remediation summary grouped by risk owner or owner.",
+    )
+    parser.add_argument(
         "--fail-on",
         choices=("none", "low", "medium", "high", "critical"),
         default="none",
@@ -888,6 +980,8 @@ def main(argv: list[str] | None = None) -> int:
         report = render_sarif(findings, args.config)
     else:
         report = render_markdown(findings)
+        if args.append_owner_summary:
+            report = report.rstrip() + "\n\n" + render_owner_remediation_summary(config, findings)
     write_output(report, args.output)
     return 1 if should_fail(findings, args.fail_on) else 0
 
