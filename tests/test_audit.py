@@ -9,6 +9,7 @@ from mcp_agent_security_kit.audit import (
     render_allowed_tool_drift_json,
     render_allowed_tool_drift_markdown,
     render_json,
+    render_owner_remediation_summary,
     render_sarif,
     risk_score,
     should_fail,
@@ -384,6 +385,36 @@ class AuditTests(unittest.TestCase):
         self.assertIn("MCP Allowed Tool Drift", markdown)
         self.assertIn("write_file", markdown)
         self.assertEqual(len(json_report["drift"]), 2)
+
+    def test_owner_remediation_summary_groups_by_risk_owner(self):
+        config = {
+            "mcpServers": {
+                "workspace": {
+                    "owner": "platform",
+                    "riskOwner": "security",
+                    "command": "bash",
+                    "args": ["-lc", "echo test"],
+                },
+                "remote": {
+                    "owner": "integrations",
+                    "url": "http://example.test/sse",
+                },
+            }
+        }
+        findings = audit_config(config)
+        summary = render_owner_remediation_summary(config, findings)
+
+        self.assertIn("Owner Remediation Summary", summary)
+        self.assertIn("| security |", summary)
+        self.assertIn("| integrations |", summary)
+        self.assertIn("Block release", summary)
+
+    def test_owner_remediation_summary_handles_unassigned_configuration(self):
+        findings = audit_config({})
+        summary = render_owner_remediation_summary({}, findings)
+
+        self.assertIn("| unassigned |", summary)
+        self.assertIn("MCP-000", summary)
 
     def test_sarif_output_contains_rules_and_results(self):
         findings = audit_config({"mcpServers": {"remote": {"url": "http://example.test/sse"}}})

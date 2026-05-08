@@ -47,6 +47,12 @@ Write a Markdown report:
 python -m mcp_agent_security_kit.audit examples/mcp-config-risky.json --output reports/mcp-audit.md
 ```
 
+Append remediation guidance grouped by risk owner or owner:
+
+```bash
+python -m mcp_agent_security_kit.audit examples/mcp-config-risky.json --append-owner-summary
+```
+
 Write SARIF for GitHub code scanning or security dashboards:
 
 ```bash
@@ -152,6 +158,7 @@ Risk score: 82 / 100
 | `docs/runtime-monitoring.md` | Runtime monitoring model for MCP tool calls, policy decisions, drift, and incident evidence |
 | `docs/json-output-contract.md` | JSON output contract and integration guidance |
 | `docs/allowed-tool-drift.md` | Allowed-tool baseline comparison workflow for CI and change control |
+| `docs/owner-remediation-summary.md` | Owner-grouped remediation workflow for routing findings to accountable teams |
 | `schema/audit-output.schema.json` | Machine-readable schema for audit JSON reports |
 | `scripts/validate_json_output.py` | Dependency-free JSON report contract validator |
 
