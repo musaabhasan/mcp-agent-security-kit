@@ -107,6 +107,19 @@
         "TWINE_PASSWORD": "replace-me",
         "PIP_INDEX_URL": "https://user:token@pypi.org/simple"
       }
+    },
+    "ci-deployer": {
+      "command": "node",
+      "args": [
+        "deploy-server.js",
+        "/home/runner/.config/gh/hosts.yml",
+        "/home/runner/.buildkite-agent/token"
+      ],
+      "env": {
+        "GITHUB_TOKEN": "replace-me",
+        "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "replace-me",
+        "CI_JOB_TOKEN": "replace-me"
+      }
     }
   }
 }

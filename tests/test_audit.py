@@ -1241,6 +1241,77 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-032", rule_ids)
 
+    def test_ci_cd_credential_env_is_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "deploy-agent": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["deploy-server.js"],
+                        "env": {
+                            "GITHUB_TOKEN": "gh-secret",
+                            "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "oidc-secret",
+                            "CI_JOB_TOKEN": "gitlab-secret",
+                        },
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        evidence = " ".join(finding.evidence for finding in findings if finding.rule_id == "MCP-033")
+
+        self.assertIn("MCP-033", rule_ids)
+        self.assertIn("GITHUB_TOKEN", evidence)
+        self.assertIn("ACTIONS_ID_TOKEN_REQUEST_TOKEN", evidence)
+        self.assertIn("CI_JOB_TOKEN", evidence)
+
+    def test_ci_cd_credential_files_are_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "pipeline-helper": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "docker",
+                        "args": [
+                            "run",
+                            "--mount",
+                            "type=bind,source=/home/runner/.config/gh/hosts.yml,target=/root/.config/gh/hosts.yml,readonly",
+                            "/home/runner/.buildkite-agent/token",
+                            "example/pipeline-mcp@sha256:"
+                            "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                        ],
+                        "jenkinsApiToken": "jenkins-secret",
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        evidence = " ".join(finding.evidence for finding in findings if finding.rule_id == "MCP-033")
+
+        self.assertIn("MCP-033", rule_ids)
+        self.assertIn("hosts.yml", evidence)
+        self.assertIn(".buildkite-agent/token", evidence)
+        self.assertIn("jenkinsApiToken", evidence)
+
+    def test_ci_cd_placeholder_reference_is_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "release-reader": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["release-server.js", "--job-token", "${BROKERED_CI_TOKEN}"],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-033", rule_ids)
+
     def test_extract_allowed_tools_handles_lists_and_maps(self):
         tools = extract_allowed_tools(
             {

@@ -18,6 +18,7 @@ AI agents are moving from chat interfaces into systems that can read files, call
 - Cloud CLI credential context detection for AWS, Google Cloud, Azure, and OCI authority boundaries.
 - Database client credential context detection for DSNs, password variables, option files, and profile directories.
 - Package registry credential context detection for dependency and publishing authority boundaries.
+- CI/CD credential context detection for deployment, build, and release authority boundaries.
 - Safe and risky MCP configuration examples for testing.
 - GitHub Actions validation for unit tests, Python compilation, SARIF report generation, JSON contract validation, and safe-example audit gates.
 - A published JSON output schema for downstream security dashboards, CI gates, and evidence repositories.
@@ -154,6 +155,7 @@ It also handles top-level server maps and remote server entries with `url`, `hea
 | MCP-030 | Cloud CLI credential context is exposed to the MCP server |
 | MCP-031 | Database client credential context is exposed to the MCP server |
 | MCP-032 | Package registry credential context is exposed to the MCP server |
+| MCP-033 | CI/CD credential context is exposed to the MCP server |
 
 ## Change-Control Utilities
 
@@ -206,6 +208,7 @@ Risk score: 82 / 100
 | `docs/cloud-cli-credential-context.md` | Review guidance for preventing AWS, Google Cloud, Azure, and OCI CLI credential context from becoming agent authority boundaries |
 | `docs/database-client-credential-context.md` | Review guidance for preventing database passwords, DSNs, option files, and profile directories from becoming agent authority boundaries |
 | `docs/package-registry-credential-context.md` | Review guidance for preventing package manager tokens, config files, and registry credentials from becoming agent authority boundaries |
+| `docs/ci-cd-credential-context.md` | Review guidance for preventing CI/CD runtime tokens, deployment credentials, and pipeline config files from becoming agent authority boundaries |
 | `docs/severity-overrides.md` | Local severity override policy workflow for adapting rule severities without suppressing evidence |
 | `schema/audit-output.schema.json` | Machine-readable schema for audit JSON reports |
 | `scripts/validate_json_output.py` | Dependency-free JSON report contract validator |
