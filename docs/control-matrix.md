@@ -16,6 +16,7 @@
 | Container runtime authority | Keep Podman, containerd, CRI-O, cri-dockerd, and BuildKit sockets out of direct MCP server reach | MCP-029 scan results, broker design, build/deploy approval logs |
 | Cloud operation authority | Keep AWS, Google Cloud, Azure, and OCI CLI profiles, credential files, and config directories out of direct MCP server reach | MCP-030 scan results, cloud IAM review, broker approval logs |
 | Database access authority | Keep database passwords, DSNs with embedded credentials, option files, and profile directories out of direct MCP server reach | MCP-031 scan results, database grant review, query broker audit logs |
+| Package supply-chain authority | Keep package manager tokens, registry config files, and publish credentials out of direct MCP server reach | MCP-032 scan results, registry token inventory, release approval logs |
 | Prompt injection | Label untrusted content and inspect tool outputs before reuse | Test records, blocked examples |
 | Human approval | Require approval for high-impact, external, privileged, or irreversible actions | Approval logs |
 | Monitoring | Log prompts, tool arguments, tool outputs, denials, approvals, and downstream actions | SIEM queries, trace samples |

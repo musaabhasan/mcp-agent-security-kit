@@ -1169,6 +1169,78 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-031", rule_ids)
 
+    def test_package_registry_credential_env_is_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "release-helper": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["release-server.js"],
+                        "env": {
+                            "NPM_TOKEN": "npm-secret",
+                            "TWINE_PASSWORD": "pypi-secret",
+                            "PIP_INDEX_URL": "https://user:token@pypi.org/simple",
+                        },
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        evidence = " ".join(finding.evidence for finding in findings if finding.rule_id == "MCP-032")
+
+        self.assertIn("MCP-032", rule_ids)
+        self.assertIn("NPM_TOKEN", evidence)
+        self.assertIn("TWINE_PASSWORD", evidence)
+        self.assertIn("PIP_INDEX_URL", evidence)
+
+    def test_package_registry_config_files_are_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "build-agent": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "docker",
+                        "args": [
+                            "run",
+                            "--mount",
+                            "type=bind,source=/home/alice/.npmrc,target=/root/.npmrc,readonly",
+                            "--mount",
+                            "type=bind,source=/home/alice/.m2/settings.xml,target=/root/.m2/settings.xml,readonly",
+                            "example/build-mcp@sha256:"
+                            "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                        ],
+                        "nugetConfig": "/home/alice/.nuget/NuGet.Config",
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        evidence = " ".join(finding.evidence for finding in findings if finding.rule_id == "MCP-032")
+
+        self.assertIn("MCP-032", rule_ids)
+        self.assertIn(".npmrc", evidence)
+        self.assertIn(".m2/settings.xml", evidence)
+        self.assertIn("nugetConfig", evidence)
+
+    def test_package_registry_placeholder_reference_is_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "dependency-reader": {
+                        "owner": "platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["dependency-server.js", "--registry-token", "${READ_ONLY_INSTALL_TOKEN}"],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-032", rule_ids)
+
     def test_extract_allowed_tools_handles_lists_and_maps(self):
         tools = extract_allowed_tools(
             {

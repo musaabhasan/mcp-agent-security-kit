@@ -94,6 +94,19 @@
         "PGPASSFILE": "/home/alice/.pgpass",
         "DATABASE_URL": "postgresql://reporter:secret@db.internal/research"
       }
+    },
+    "package-release": {
+      "command": "node",
+      "args": [
+        "release-server.js",
+        "/home/alice/.npmrc",
+        "/home/alice/.m2/settings.xml"
+      ],
+      "env": {
+        "NPM_TOKEN": "replace-me",
+        "TWINE_PASSWORD": "replace-me",
+        "PIP_INDEX_URL": "https://user:token@pypi.org/simple"
+      }
     }
   }
 }
