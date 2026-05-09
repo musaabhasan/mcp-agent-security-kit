@@ -27,6 +27,7 @@ AI agents are moving from chat interfaces into systems that can read files, call
 - A threat scenario library for prompt-to-tool abuse, tool poisoning, approval bypass, and toxic tool flows.
 - An agent-tool incident response playbook for preserving evidence, containment, credential rotation, and recovery gates.
 - A tool-permission review worksheet for assessing read, write, execution, network, credential, and auto-approval authority before adding agent tools.
+- A secure MCP server onboarding checklist for intake, configuration hygiene, identity, runtime boundaries, testing, monitoring, and launch decisions.
 - A control matrix aligned to agentic AI security, identity, logging, and governance concerns.
 - A practical launch checklist for teams piloting AI agents.
 - Runtime monitoring guidance for tool telemetry, drift detection, evidence handling, and incident triggers.
@@ -198,6 +199,7 @@ Risk score: 82 / 100
 | `docs/owner-remediation-summary.md` | Owner-grouped remediation workflow for routing findings to accountable teams |
 | `docs/agent-tool-incident-response-playbook.md` | Incident response workflow for MCP tool misuse, credential exposure, RAG poisoning, and external action containment |
 | `docs/tool-permission-review-worksheet.md` | Review worksheet for MCP tool authority, permission minimization, approval gates, logging, test evidence, and re-review triggers |
+| `docs/secure-mcp-server-onboarding.md` | Secure onboarding checklist for MCP server intake, configuration, identity, runtime boundaries, testing, monitoring, release decisions, and post-launch review |
 | `docs/broad-auth-scopes.md` | Least-privilege review guidance for OAuth scopes and provider permissions |
 | `docs/credential-path-exposure.md` | Review guidance for preventing MCP filesystem grants from exposing local credential stores |
 | `docs/env-file-exposure.md` | Review guidance for preventing `.env` and secret-bearing env files from being passed into MCP servers |
