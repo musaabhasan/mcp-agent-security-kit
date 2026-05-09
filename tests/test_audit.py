@@ -1096,6 +1096,79 @@ class AuditTests(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertNotIn("MCP-030", rule_ids)
 
+    def test_database_client_credential_env_is_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "analytics-db": {
+                        "owner": "data-platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["database-server.js"],
+                        "env": {
+                            "PGPASSWORD": "production-password",
+                            "PGPASSFILE": "/home/alice/.pgpass",
+                            "MYSQL_PWD": "mysql-password",
+                        },
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        evidence = " ".join(finding.evidence for finding in findings if finding.rule_id == "MCP-031")
+
+        self.assertIn("MCP-031", rule_ids)
+        self.assertIn("PGPASSWORD", evidence)
+        self.assertIn(".pgpass", evidence)
+        self.assertIn("MYSQL_PWD", evidence)
+
+    def test_database_client_files_and_dsns_are_flagged(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "db-maintenance": {
+                        "owner": "data-platform",
+                        "riskOwner": "security",
+                        "command": "docker",
+                        "args": [
+                            "run",
+                            "--mount",
+                            "type=bind,source=/home/alice/.my.cnf,target=/root/.my.cnf,readonly",
+                            "example/db-mcp@sha256:"
+                            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                        ],
+                        "config": {
+                            "databaseUrl": "postgresql://reporter:secret@db.internal/research",
+                            "dbtProfilesDir": "/home/alice/.dbt/profiles.yml",
+                        },
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        evidence = " ".join(finding.evidence for finding in findings if finding.rule_id == "MCP-031")
+
+        self.assertIn("MCP-031", rule_ids)
+        self.assertIn(".my.cnf", evidence)
+        self.assertIn("databaseUrl", evidence)
+        self.assertIn(".dbt/profiles.yml", evidence)
+
+    def test_database_client_placeholder_paths_are_allowed(self):
+        findings = audit_config(
+            {
+                "mcpServers": {
+                    "db-reader": {
+                        "owner": "data-platform",
+                        "riskOwner": "security",
+                        "command": "node",
+                        "args": ["database-server.js", "--dsn", "${BROKERED_DATABASE_DSN}"],
+                    }
+                }
+            }
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertNotIn("MCP-031", rule_ids)
+
     def test_extract_allowed_tools_handles_lists_and_maps(self):
         tools = extract_allowed_tools(
             {
