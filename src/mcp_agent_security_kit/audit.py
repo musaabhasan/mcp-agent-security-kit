@@ -280,6 +280,41 @@ CLOUD_CLI_CREDENTIAL_PATTERNS = (
     re.compile(r"(^|[/=:,;~])\.oci/config([/=:,;]|$)", re.IGNORECASE),
     re.compile(r"(application_default_credentials|service[-_]?account|gcloud).*\.json([/=:,;]|$)", re.IGNORECASE),
 )
+DATABASE_CLIENT_CREDENTIAL_KEYS = {
+    "databasepassword",
+    "databaseurl",
+    "dbpassword",
+    "dburl",
+    "dbtprofilesdir",
+    "mongodbatlasapikey",
+    "mongodburi",
+    "mongopassword",
+    "mongouri",
+    "mssqlpassword",
+    "mysqlhome",
+    "mysqloptionsfile",
+    "mysqlpassword",
+    "mysqlpwd",
+    "odbcini",
+    "odbcinipath",
+    "odbcinstini",
+    "odbcsysini",
+    "pgpassfile",
+    "pgpassword",
+    "pgservicefile",
+    "postgrespassword",
+    "postgresurl",
+    "redispassword",
+    "redisurl",
+    "sqlcmdpassword",
+}
+DATABASE_CLIENT_CREDENTIAL_PATTERNS = (
+    re.compile(r"(^|[/=:,;~])(\.pgpass|\.pg_service\.conf)([/=:,;]|$)", re.IGNORECASE),
+    re.compile(r"(^|[/=:,;~])(\.my\.cnf|\.mylogin\.cnf)([/=:,;]|$)", re.IGNORECASE),
+    re.compile(r"(^|[/=:,;~])\.dbt/profiles\.ya?ml([/=:,;]|$)", re.IGNORECASE),
+    re.compile(r"(^|[/=:,;~])(odbc\.ini|odbcinst\.ini)([/=:,;]|$)", re.IGNORECASE),
+    re.compile(r"\b(postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|redis|rediss)://[^/\s:@]+:[^@\s]+@", re.IGNORECASE),
+)
 
 
 @dataclass(frozen=True)
@@ -772,6 +807,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 "Cloud CLI credential context is exposed to the MCP server.",
                 "Do not pass AWS, Google Cloud, Azure, or OCI CLI credential profiles and config paths into agent-accessible tools. Use scoped workload identity, short-lived tokens, or a brokered cloud operation with approval and audit logging.",
                 ", ".join(cloud_cli_credential_exposures),
+            )
+        )
+
+    database_client_credential_exposures = _database_client_credential_exposures(server)
+    if database_client_credential_exposures:
+        findings.append(
+            Finding(
+                "high",
+                "MCP-031",
+                name,
+                "Database client credential context is exposed to the MCP server.",
+                "Do not pass database passwords, DSNs with embedded credentials, client option files, or profile directories into agent-accessible tools. Use scoped read-only accounts, short-lived credentials, network allowlists, and brokered query services with audit logging.",
+                ", ".join(database_client_credential_exposures),
             )
         )
 
@@ -1860,6 +1908,34 @@ def _cloud_cli_credential_exposures(value: Any, path: str = "") -> list[str]:
         if text and _is_cloud_cli_credential_reference(text):
             evidence.append(f"{path}={text}" if path else text)
     return sorted(set(evidence))
+
+
+def _database_client_credential_exposures(value: Any, path: str = "") -> list[str]:
+    evidence: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_path = f"{path}.{key}" if path else str(key)
+            normalized_key = _normalize_key(str(key))
+            if normalized_key in DATABASE_CLIENT_CREDENTIAL_KEYS and _has_nonempty_value(item):
+                evidence.append(f"{key_path}={item}")
+            evidence.extend(_database_client_credential_exposures(item, key_path))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            evidence.extend(_database_client_credential_exposures(item, f"{path}[{index}]"))
+    elif isinstance(value, (str, int, float)):
+        text = str(value).strip()
+        if text and _is_database_client_credential_reference(text):
+            evidence.append(f"{path}={text}" if path else text)
+    return sorted(set(evidence))
+
+
+def _is_database_client_credential_reference(value: str) -> bool:
+    if _is_placeholder_reference(value):
+        return False
+    normalized = value.strip().strip('"').strip("'").replace("\\", "/").lower()
+    if not normalized:
+        return False
+    return any(pattern.search(normalized) for pattern in DATABASE_CLIENT_CREDENTIAL_PATTERNS)
 
 
 def _is_cloud_cli_credential_reference(value: str) -> bool:
