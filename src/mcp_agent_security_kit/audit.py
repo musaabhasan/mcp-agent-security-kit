@@ -315,6 +315,37 @@ DATABASE_CLIENT_CREDENTIAL_PATTERNS = (
     re.compile(r"(^|[/=:,;~])(odbc\.ini|odbcinst\.ini)([/=:,;]|$)", re.IGNORECASE),
     re.compile(r"\b(postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|redis|rediss)://[^/\s:@]+:[^@\s]+@", re.IGNORECASE),
 )
+PACKAGE_REGISTRY_CREDENTIAL_KEYS = {
+    "cargoregistrytoken",
+    "composerauth",
+    "gemcredentials",
+    "githubpackagestoken",
+    "gradleproperties",
+    "mavensettings",
+    "mavensettingssecurity",
+    "nodeauthtoken",
+    "npmconfigglobalconfig",
+    "npmconfiguserconfig",
+    "npmtoken",
+    "nugetapikey",
+    "nugetconfig",
+    "pipconfigfile",
+    "pipextraindexurl",
+    "pipindexurl",
+    "pypitoken",
+    "rubygemsapikey",
+    "twinepassword",
+    "twinerepositoryurl",
+    "twineusername",
+    "yarnnpmauthtoken",
+}
+PACKAGE_REGISTRY_CREDENTIAL_PATTERNS = (
+    re.compile(r"(^|[/=:,;~])(\.npmrc|\.yarnrc\.yml|\.pypirc|pip\.conf|pip\.ini)([/=:,;]|$)", re.IGNORECASE),
+    re.compile(r"(^|[/=:,;~])(\.m2/settings\.xml|\.m2/settings-security\.xml|gradle\.properties)([/=:,;]|$)", re.IGNORECASE),
+    re.compile(r"(^|[/=:,;~])(\.cargo/credentials(?:\.toml)?|\.gem/credentials|auth\.json)([/=:,;]|$)", re.IGNORECASE),
+    re.compile(r"(^|[/=:,;~])(nuget\.config|NuGet\.Config)([/=:,;]|$)", re.IGNORECASE),
+    re.compile(r"\bhttps?://[^/\s:@]+:[^@\s]+@(registry\.npmjs\.org|pypi\.org|upload\.pypi\.org|nuget\.org|rubygems\.org|pkg\.github\.com)", re.IGNORECASE),
+)
 
 
 @dataclass(frozen=True)
@@ -820,6 +851,19 @@ def audit_server(name: str, server: dict[str, Any]) -> list[Finding]:
                 "Database client credential context is exposed to the MCP server.",
                 "Do not pass database passwords, DSNs with embedded credentials, client option files, or profile directories into agent-accessible tools. Use scoped read-only accounts, short-lived credentials, network allowlists, and brokered query services with audit logging.",
                 ", ".join(database_client_credential_exposures),
+            )
+        )
+
+    package_registry_credential_exposures = _package_registry_credential_exposures(server)
+    if package_registry_credential_exposures:
+        findings.append(
+            Finding(
+                "high",
+                "MCP-032",
+                name,
+                "Package registry credential context is exposed to the MCP server.",
+                "Do not pass npm, PyPI, NuGet, Maven, Gradle, Cargo, RubyGems, Composer, or GitHub Packages credentials into agent-accessible tools. Use short-lived publish tokens, read-only install tokens, isolated build workers, and explicit release approval.",
+                ", ".join(package_registry_credential_exposures),
             )
         )
 
@@ -1936,6 +1980,34 @@ def _is_database_client_credential_reference(value: str) -> bool:
     if not normalized:
         return False
     return any(pattern.search(normalized) for pattern in DATABASE_CLIENT_CREDENTIAL_PATTERNS)
+
+
+def _package_registry_credential_exposures(value: Any, path: str = "") -> list[str]:
+    evidence: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_path = f"{path}.{key}" if path else str(key)
+            normalized_key = _normalize_key(str(key))
+            if normalized_key in PACKAGE_REGISTRY_CREDENTIAL_KEYS and _has_nonempty_value(item):
+                evidence.append(f"{key_path}={item}")
+            evidence.extend(_package_registry_credential_exposures(item, key_path))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            evidence.extend(_package_registry_credential_exposures(item, f"{path}[{index}]"))
+    elif isinstance(value, (str, int, float)):
+        text = str(value).strip()
+        if text and _is_package_registry_credential_reference(text):
+            evidence.append(f"{path}={text}" if path else text)
+    return sorted(set(evidence))
+
+
+def _is_package_registry_credential_reference(value: str) -> bool:
+    if _is_placeholder_reference(value):
+        return False
+    normalized = value.strip().strip('"').strip("'").replace("\\", "/")
+    if not normalized:
+        return False
+    return any(pattern.search(normalized) for pattern in PACKAGE_REGISTRY_CREDENTIAL_PATTERNS)
 
 
 def _is_cloud_cli_credential_reference(value: str) -> bool:
