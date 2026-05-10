@@ -1,0 +1,33 @@
+{
+  "mcpServers": {
+    "safe-remote-ticket-search": {
+      "owner": "it-operations",
+      "riskOwner": "service-desk-owner",
+      "url": "https://mcp.example.com/tickets/sse",
+      "headers": {
+        "Authorization": "Bearer ${MCP_TICKET_SEARCH_TOKEN}"
+      },
+      "allowedTools": ["search_tickets", "get_ticket"]
+    },
+    "safe-remote-docs": {
+      "owner": "knowledge-management",
+      "riskOwner": "ai-platform-owner",
+      "url": "https://mcp.example.com/docs/sse",
+      "headers": {
+        "X-API-Key": "${MCP_DOCS_API_KEY}"
+      },
+      "allowedTools": ["search_docs", "read_doc"]
+    },
+    "risky-remote-http": {
+      "url": "http://mcp.example.test/sse",
+      "alwaysAllow": ["*"]
+    },
+    "risky-remote-inline-secret": {
+      "url": "https://mcp.example.com/admin/sse?token=replace-me",
+      "headers": {
+        "Authorization": "Bearer replace-me"
+      },
+      "alwaysAllow": ["create_ticket", "send_email", "merge_pull_request"]
+    }
+  }
+}
