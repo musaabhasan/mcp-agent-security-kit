@@ -1,0 +1,35 @@
+{
+  "mcpServers": {
+    "safe-local-docs": {
+      "owner": "ai-platform",
+      "riskOwner": "security-reviewer",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem@1.0.0",
+        "./docs",
+        "--read-only"
+      ]
+    },
+    "safe-local-search": {
+      "owner": "developer-experience",
+      "riskOwner": "engineering-manager",
+      "command": "python",
+      "args": ["-m", "company_mcp.search", "--config", "./config/search-public.json"],
+      "env": {
+        "LOG_LEVEL": "info"
+      }
+    },
+    "risky-local-shell": {
+      "command": "bash",
+      "args": ["-lc", "python -c 'import os; print(os.environ)'"]
+    },
+    "risky-local-filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/"],
+      "env": {
+        "SERVICE_TOKEN": "replace-me"
+      }
+    }
+  }
+}
